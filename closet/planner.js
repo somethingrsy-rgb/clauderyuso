@@ -32,28 +32,60 @@ function toggleSel(ids,id){
 }
 
 /* ---------- 콜라주: 옷들을 한 장의 룩북처럼 배치 ---------- */
-// 왼쪽 줄 = 상의(원피스)·하의, 오른쪽 줄 = 아우터·신발·액세서리. 사진 배경(흰색)은 multiply로 겹쳐 그려서 안 보이게 함
+// 왼쪽 줄 = 상의(원피스)·하의, 오른쪽 줄 = 아우터·신발·액세서리. 사진의 여백은 잘라 내고 옷끼리 바짝 붙여 한 덩어리로 모음
 const CW=600,CH=800;
-function collageSlots(its){
+function collageCols(its){
   const get=c=>its.filter(i=>i.cat===c),dress=get('원피스')[0];
   const main=dress?[dress]:[get('상의')[0],get('하의')[0]].filter(Boolean);
   const side=[...get('아우터').slice(0,1),...get('신발').slice(0,1),...get('액세서리')];
-  const col=(list,hs,x,w)=>{
-    const gap=12,total=hs.reduce((a,b)=>a+b,0)+gap*(hs.length-1),k=Math.min(1,(CH-48)/total);
-    let y=(CH-total*k)/2;return list.map((it,n)=>{const h=hs[n]*k,r={it,x,y,w,h};y+=h+gap*k;return r});
-  };
   const both=main.length&&side.length;
-  return [...col(main,dress?[740]:main.length===2?[340,420]:[560],both?24:70,both?340:460),   // 한 줄뿐이면 넓게
-          ...col(side,side.map(i=>i.cat==='아우터'?300:i.cat==='신발'?190:140),main.length?384:100,main.length?192:400)];
+  return [
+    {gap:4,items:main.map(it=>({it,w:both?340:460,h:dress?740:main.length===2?(it.cat==='상의'?340:420):560}))},
+    {gap:14,items:side.map(it=>({it,w:main.length?240:400,h:it.cat==='아우터'?300:it.cat==='신발'?190:140}))},
+  ].filter(c=>c.items.length);
 }
 const loadImg=src=>new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=src});
+// 사진에서 옷만 남김: 밝은 배경은 투명하게(희미한 배경 네모가 안 보이게) 하고, 옷이 있는 부분(x,y,w,h)을 구함
+function cutout(im){
+  const w=im.width,h=im.height,c=el('canvas',{width:w,height:h}),g=c.getContext('2d',{willReadFrequently:true});
+  g.drawImage(im,0,0);
+  const px=g.getImageData(0,0,w,h),d=px.data;
+  let clear=0;for(let i=3;i<d.length;i+=4)if(d[i]<250)clear++;
+  let bg=null;
+  if(clear<=w*h*.02){                                       // 배경을 지운 사진은 이미 투명
+    const ch=[[],[],[]],at=(x,y)=>{const i=(y*w+x)*4;for(let k=0;k<3;k++)ch[k].push(d[i+k])};
+    for(let x=0;x<w;x++){at(x,0);at(x,h-1)}for(let y=1;y<h-1;y++){at(0,y);at(w-1,y)}
+    bg=ch.map(a=>a.sort((p,q)=>p-q)[a.length>>1]);
+    if(Math.min(...bg)<200)bg=null;                         // 배경이 밝지 않으면 손대지 않음
+  }
+  const rows=new Uint32Array(h),cols=new Uint32Array(w);
+  for(let y=0,i=0;y<h;y++)for(let x=0;x<w;x++,i+=4){
+    if(bg){const e=Math.abs(d[i]-bg[0])+Math.abs(d[i+1]-bg[1])+Math.abs(d[i+2]-bg[2]);d[i+3]=e<24?0:e>60?d[i+3]:d[i+3]*(e-24)/36}
+    if(d[i+3]>40){rows[y]++;cols[x]++}
+  }
+  g.putImageData(px,0,0);
+  const tr=Math.max(2,w*.004),tc=Math.max(2,h*.004);       // 먼지 같은 점은 무시
+  let x0=0,x1=w-1,y0=0,y1=h-1;
+  while(x0<x1&&cols[x0]<tc)x0++;while(x1>x0&&cols[x1]<tc)x1--;
+  while(y0<y1&&rows[y0]<tr)y0++;while(y1>y0&&rows[y1]<tr)y1--;
+  return{c,x:x0,y:y0,w:x1-x0+1,h:y1-y0+1};
+}
 async function drawCollage(ids){
-  const slots=collageSlots(sortIds(ids).map(itemById)),imgs=await Promise.all(slots.map(s=>loadImg(s.it.photo)));
-  const c=el('canvas',{width:CW,height:CH}),g=c.getContext('2d');
-  g.fillStyle='#fff';g.fillRect(0,0,CW,CH);g.globalCompositeOperation='multiply';g.imageSmoothingQuality='high';
-  slots.forEach((s,n)=>{const im=imgs[n],k=Math.min(s.w/im.width,s.h/im.height),w=im.width*k,h=im.height*k;
-    g.drawImage(im,s.x+(s.w-w)/2,s.y+(s.h-h)/2,w,h)});
-  return c.toDataURL('image/png');
+  const cols=collageCols(sortIds(ids).map(itemById)),flat=cols.flatMap(c=>c.items);
+  const cuts=(await Promise.all(flat.map(s=>loadImg(s.it.photo)))).map(cutout);
+  flat.forEach((s,n)=>{const b=cuts[n],k=Math.min(s.w/b.w,s.h/b.h);s.cut=b;s.w=b.w*k;s.h=b.h*k});
+  cols.forEach(c=>{c.w=Math.max(...c.items.map(s=>s.w));c.h=c.items.reduce((a,s)=>a+s.h,0)+c.gap*(c.items.length-1)});
+  const GAPX=30,W=cols.reduce((a,c)=>a+c.w,0)+GAPX*(cols.length-1),H=Math.max(...cols.map(c=>c.h));
+  const f=Math.min(1.5,(CW-48)/W,(CH-48)/H);                // 한 덩어리로 키워서 캔버스를 채움
+  const cv=el('canvas',{width:CW,height:CH}),g=cv.getContext('2d');
+  g.fillStyle='#fff';g.fillRect(0,0,CW,CH);g.imageSmoothingQuality='high';
+  let x=(CW-W*f)/2;
+  for(const c of cols){
+    let y=(CH-c.h*f)/2;
+    for(const s of c.items){const w=s.w*f,h=s.h*f;g.drawImage(s.cut.c,s.cut.x,s.cut.y,s.cut.w,s.cut.h,x+(c.w*f-w)/2,y,w,h);y+=h+c.gap*f}
+    x+=c.w*f+GAPX*f;
+  }
+  return cv.toDataURL('image/png');
 }
 const colUrl=new Map(),colPending=new Map();
 const colKey=ids=>sortIds(ids).map(id=>id+':'+itemById(id).photo.length).join('|');
