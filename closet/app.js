@@ -207,11 +207,44 @@ function renderSeasonChips(sel){
   $('#f-seasons').replaceChildren(...SEASONS.map(s=>chip(s,sel.has(s),e=>{sel.has(s)?sel.delete(s):sel.add(s);e.target.classList.toggle('on')})));
 }
 let seasonSel=new Set();
+/* ---------- 배경 지우기 ---------- */
+let cutOn=false;
+const bgMsg=t=>{$('#bg-msg').textContent=t};
+function showCut(on){
+  cutOn=on;$('#bg-canvas').hidden=!on;$('#drop').classList.toggle('cut',on);
+  $('#preview').hidden=on||!photoData;$('#bg-undo').disabled=!BgCut.canUndo;$('#bg-reset').disabled=!BgCut.dirty;
+}
+async function setupCut(url){
+  $('#bg-tools').hidden=true;showCut(false);
+  if(!url)return;
+  try{await BgCut.load(url);$('#bg-tools').hidden=false;
+    bgMsg('배경이 단색이면 한 번에 지워져요. 강도가 높을수록 비슷한 색을 더 많이 지워요.');showCut(false)}
+  catch{/* 읽지 못하면 도구만 숨김 */}
+}
+$('#bg-tol').oninput=e=>{$('#bg-tol-v').textContent=e.target.value};
+$('#bg-auto').onclick=()=>{
+  const r=BgCut.auto(+$('#bg-tol').value);
+  if(!r.ok){bgMsg(r.reason==='all'?'옷까지 같이 지워질 것 같아 취소했어요. 강도를 낮추거나, 남기고 싶은 옷과 배경 색이 다른 사진으로 해 보세요.':'사진 가장자리에서 배경을 찾지 못했어요.');showCut(cutOn);return}
+  BgCut.paint($('#bg-canvas'));showCut(true);
+  if(r.already){bgMsg('이미 배경이 지워진 사진이에요. 남은 부분은 눌러서 지울 수 있어요.');return}
+  bgMsg(r.removed<.03?'거의 지워지지 않았어요. 강도를 높이거나 남은 배경을 눌러서 지워 보세요.':'남은 배경은 눌러서 지울 수 있어요. 옷이 지워졌다면 되돌리기를 누르세요.');
+};
+$('#bg-canvas').onclick=e=>{
+  e.preventDefault();                                 // 라벨이 사진 선택창을 열지 않게 막음
+  const p=BgCut.pointToPixel($('#bg-canvas'),e.clientX,e.clientY);if(!p)return;
+  if(!BgCut.wand(p.x,p.y,+$('#bg-tol').value)){bgMsg('이미 지워진 곳이에요.');return}
+  BgCut.paint($('#bg-canvas'));showCut(true);bgMsg('눌러서 더 지울 수 있어요. 잘못 지웠다면 되돌리기를 누르세요.');
+};
+$('#bg-undo').onclick=()=>{if(BgCut.undo()){BgCut.paint($('#bg-canvas'));showCut(BgCut.dirty)}};
+$('#bg-reset').onclick=()=>{BgCut.reset();showCut(false);bgMsg('원본으로 돌렸어요.')};
+$('#bg-change').onclick=()=>$('#photo').click();
+
 function openDlg(it){
   editing=it||null;photoData=it?it.photo:null;
   $('#dlg-title').textContent=it?'옷 수정':'옷 추가';
   $('#f-name').value=it?.name||'';selCat=it?.cat||CATS[0];selColor=it?.color||'검정';renderCatChips();renderSwatches();
   $('#photo').value='';$('#preview').hidden=!photoData;if(photoData)$('#preview').src=photoData;else $('#preview').removeAttribute('src');
+  setupCut(photoData);
   seasonSel=new Set(it?it.seasons:SEASONS);renderSeasonChips(seasonSel);
   $('#btn-del').hidden=!it;$('#dlg').showModal();$('#dlg').scrollTop=0;
 }
@@ -219,11 +252,11 @@ $('#q').oninput=renderCloset;$('#sort').onchange=renderCloset;
 $('#fab').onclick=()=>openDlg();$('#empty-add').onclick=()=>openDlg();
 $('#btn-cancel').onclick=()=>$('#dlg').close();
 $('#photo').onchange=async e=>{const f=e.target.files[0];if(!f)return;
-  try{photoData=await resize(f);$('#preview').src=photoData;$('#preview').hidden=false}catch(err){alert(err.message)}};
+  try{photoData=await resize(f);$('#preview').src=photoData;$('#preview').hidden=false;await setupCut(photoData)}catch(err){alert(err.message)}};
 $('#form').onsubmit=async e=>{
   if(!photoData){e.preventDefault();alert('사진을 선택해 주세요');return}
   const it={...(editing||{}),name:$('#f-name').value.trim(),cat:selCat,color:selColor,
-    seasons:[...seasonSel],photo:photoData};
+    seasons:[...seasonSel],photo:BgCut.dirty?BgCut.encode():photoData};
   if(!it.seasons.length)it.seasons=[...SEASONS];
   await put('items',it);await refresh();
 };

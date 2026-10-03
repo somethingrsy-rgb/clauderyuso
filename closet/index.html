@@ -85,12 +85,24 @@
     </div>
     <label class="drop" id="drop">
       <img id="preview" alt="" hidden>
+      <canvas id="bg-canvas" hidden aria-label="배경을 지운 미리보기. 남은 배경을 누르면 지워져요"></canvas>
       <span id="drop-hint">
         <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg>
         사진 촬영 / 선택
       </span>
       <input type="file" id="photo" accept="image/*">
     </label>
+    <div class="bgtools" id="bg-tools" hidden>
+      <div class="row">
+        <button type="button" id="bg-auto" class="chip on">배경 지우기</button>
+        <button type="button" id="bg-undo" class="chip" disabled>되돌리기</button>
+        <button type="button" id="bg-reset" class="chip" disabled>원본으로</button>
+        <button type="button" id="bg-change" class="chip">사진 바꾸기</button>
+      </div>
+      <label class="field"><span class="lbl">지우기 강도 <b id="bg-tol-v">24</b></span>
+        <input type="range" id="bg-tol" min="8" max="70" value="24"></label>
+      <p id="bg-msg" class="muted sm">배경이 단색이면 한 번에 지워져요. 강도가 높을수록 비슷한 색을 더 많이 지워요.</p>
+    </div>
     <label class="field"><span class="lbl">이름</span>
       <input id="f-name" placeholder="예: 흰색 옥스포드 셔츠" autocomplete="off"></label>
     <div class="field"><span class="lbl">종류</span><div class="chips" id="f-cat"></div></div>
@@ -112,6 +124,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="bgcut.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
