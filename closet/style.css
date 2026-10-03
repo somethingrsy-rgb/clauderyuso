@@ -180,6 +180,12 @@ select:focus-visible{outline-color:var(--accent)}
 .piece{min-width:0}   /* 폭에 맞춰 줄바꿈: 폰에서는 한 줄에 2개씩 크게, 고른 옷이 전부 보임 */
 .piece img{display:block;box-sizing:border-box;width:100%;aspect-ratio:3/4;object-fit:contain;border-radius:14px;background:var(--photo);border:1px solid var(--line)}
 .piece small{display:block;margin-top:6px;font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 요일 칸은 예전처럼 작게 한 줄, 넘치면 옆으로 밀어서 봄 (오늘 카드와 코디 탭은 위처럼 크게 줄바꿈) */
+#week-grid .wd-strip{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none}
+#week-grid .wd-strip::-webkit-scrollbar{display:none}
+#week-grid .piece{flex:none;width:84px}
+#week-grid .piece small{margin-top:5px;font-size:12px}
+#week-grid .wd-empty{min-height:106px}
 .sm{font-size:13px}.look>.muted.sm{margin:0 0 12px}
 
 /* dock */
