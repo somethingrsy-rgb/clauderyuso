@@ -17,7 +17,7 @@
     <p class="eyebrow" id="eyebrow">THIS WEEK</p>
     <h1 id="title">주간</h1>
   </div>
-  <div class="top-r"><span id="count" class="count" hidden></span><button id="acct" class="acct" type="button" aria-label="계정">로그인</button></div>
+  <div class="top-r"><span id="count" class="count" hidden></span><button id="btn-sel" class="acct" type="button" hidden>선택</button><button id="acct" class="acct" type="button" aria-label="계정">로그인</button></div>
 </header>
 
 <main>
@@ -53,6 +53,8 @@
     <div class="row" style="padding:12px 22px 0"><button id="btn-new-combo" class="ghost">＋ 새 코디 만들기</button></div>
   </section>
 </main>
+
+<div id="selbar" class="selbar" hidden><b id="selcount"></b><span class="spacer"></span><button id="selsave" class="primary small" type="button">코디로 저장</button></div>
 
 <button id="fab" class="fab" aria-label="옷 추가" hidden>
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>

@@ -31,6 +31,57 @@ function toggleSel(ids,id){
   next.push(id);return sortIds(next);
 }
 
+/* ---------- 콜라주: 옷들을 한 장의 룩북처럼 배치 ---------- */
+// 왼쪽 줄 = 상의(원피스)·하의, 오른쪽 줄 = 아우터·신발·액세서리. 사진 배경(흰색)은 multiply로 겹쳐 그려서 안 보이게 함
+const CW=600,CH=800;
+function collageSlots(its){
+  const get=c=>its.filter(i=>i.cat===c),dress=get('원피스')[0];
+  const main=dress?[dress]:[get('상의')[0],get('하의')[0]].filter(Boolean);
+  const side=[...get('아우터').slice(0,1),...get('신발').slice(0,1),...get('액세서리')];
+  const col=(list,hs,x,w)=>{
+    const gap=12,total=hs.reduce((a,b)=>a+b,0)+gap*(hs.length-1),k=Math.min(1,(CH-48)/total);
+    let y=(CH-total*k)/2;return list.map((it,n)=>{const h=hs[n]*k,r={it,x,y,w,h};y+=h+gap*k;return r});
+  };
+  const both=main.length&&side.length;
+  return [...col(main,dress?[740]:main.length===2?[340,420]:[560],both?24:70,both?340:460),   // 한 줄뿐이면 넓게
+          ...col(side,side.map(i=>i.cat==='아우터'?300:i.cat==='신발'?190:140),main.length?384:100,main.length?192:400)];
+}
+const loadImg=src=>new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=src});
+async function drawCollage(ids){
+  const slots=collageSlots(sortIds(ids).map(itemById)),imgs=await Promise.all(slots.map(s=>loadImg(s.it.photo)));
+  const c=el('canvas',{width:CW,height:CH}),g=c.getContext('2d');
+  g.fillStyle='#fff';g.fillRect(0,0,CW,CH);g.globalCompositeOperation='multiply';g.imageSmoothingQuality='high';
+  slots.forEach((s,n)=>{const im=imgs[n],k=Math.min(s.w/im.width,s.h/im.height),w=im.width*k,h=im.height*k;
+    g.drawImage(im,s.x+(s.w-w)/2,s.y+(s.h-h)/2,w,h)});
+  return c.toDataURL('image/png');
+}
+const colUrl=new Map(),colPending=new Map();
+const colKey=ids=>sortIds(ids).map(id=>id+':'+itemById(id).photo.length).join('|');
+function collage(ids){
+  const k=colKey(ids);
+  if(!colPending.has(k)){
+    if(colPending.size>20){colPending.clear();colUrl.clear()}
+    colPending.set(k,drawCollage(ids).then(u=>(colUrl.set(k,u),u)));
+  }
+  return colPending.get(k);
+}
+function collageImg(ids){
+  const img=el('img',{alt:'코디 콜라주',draggable:false}),u=colUrl.get(colKey(ids));
+  if(u)img.src=u;else collage(ids).then(x=>{img.src=x}).catch(()=>{});
+  return img;
+}
+// 폰에서는 공유 창(이미지 저장 포함), 그 밖에는 PNG 내려받기
+async function saveCollage(ids,name){
+  try{
+    const blob=await (await fetch(await collage(ids))).blob(),file=new File([blob],`${name}.png`,{type:'image/png'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      try{await navigator.share({files:[file],title:name});return}catch(e){if(e.name==='AbortError')return}
+    }
+    const a=el('a',{href:URL.createObjectURL(blob),download:file.name});
+    document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  }catch{toast('이미지를 만들지 못했어요.')}
+}
+
 /* ---------- 요일 칸 ---------- */
 function renderWeek(){
   const box=$('#week-grid');if(!box)return;
@@ -57,11 +108,11 @@ function renderToday(){
     el('div',{className:'wd-head'},el('b',{className:'wd-name',textContent:nextWeek()?'내일':'오늘'}),
       el('span',{className:'wd-date',textContent:`${DAY_FULL[d]} ${date.getMonth()+1}/${date.getDate()}`}),tempSel(d)),
     ids.length
-      ?el('button',{type:'button',className:'wd-strip',onclick:open,'aria-label':DAY_FULL[d]+' 옷 바꾸기'},...thumbs(ids))
+      ?el('button',{type:'button',className:'collage',onclick:open,'aria-label':DAY_FULL[d]+' 옷 바꾸기'},collageImg(ids))
       :el('div',{className:'today-empty'},el('p',{className:'muted sm',textContent:'아직 정하지 않았어요'}),
         el('button',{type:'button',className:'primary small',textContent:'추천받기',onclick:()=>recommendDay(d)}),miniBtn('직접 고르기',open)),
     ...(ids.length?[el('div',{className:'wd-acts'},miniBtn('바꾸기',open),miniBtn('다시 추천',()=>recommendDay(d)),
-      miniBtn('비우기',async()=>{await savePlan(d,{ids:[]});renderWeek()},'quiet'))]:[]));
+      miniBtn('이미지 저장',()=>saveCollage(ids,`${DAY_FULL[d]} 코디`)),miniBtn('비우기',async()=>{await savePlan(d,{ids:[]});renderWeek()},'quiet'))]:[]));
 }
 function dayCard(d,i,date,ti){
   const p=planOf(d),ids=sortIds(p.ids);
@@ -97,7 +148,7 @@ const pk={mode:'day',day:null,comboId:null,ids:[],cat:'상의'};
 function openPicker(o){
   pk.mode=o.mode;pk.day=o.day||null;pk.comboId=o.comboId||null;
   const combo=o.comboId?outfits.find(x=>x.id===o.comboId):null;
-  pk.ids=o.mode==='day'?sortIds(planOf(o.day).ids):sortIds(combo?combo.ids:[]);
+  pk.ids=o.mode==='day'?sortIds(planOf(o.day).ids):sortIds(combo?combo.ids:o.ids||[]);   // 옷장에서 고른 옷으로 시작할 수도 있음
   pk.cat=CATS.find(c=>items.some(i=>i.cat===c))||CATS[0];
   $('#pk-title').textContent=o.mode==='day'?`${DAY_FULL[o.day]} 옷 고르기`:(combo?'코디 수정':'새 코디 만들기');
   $('#pk-name-wrap').hidden=o.mode!=='combo';$('#pk-name').value=combo?.name||'';
@@ -163,8 +214,8 @@ function comboCard(o){
   const ids=sortIds(o.ids);
   return el('div',{className:'combo'},
     el('div',{className:'combo-head'},el('b',{textContent:comboName(o)}),el('small',{className:'muted',textContent:o.uses?`${o.uses}회 사용`:'아직 안 썼어요'}),
-      miniBtn('수정',()=>openPicker({mode:'combo',comboId:o.id}),'quiet')),
-    ids.length?el('div',{className:'wd-strip static'},...thumbs(ids)):el('p',{className:'muted sm',style:'margin:0',textContent:'옷이 모두 삭제됐어요. 수정에서 다시 고르세요.'}),
+      miniBtn('수정',()=>openPicker({mode:'combo',comboId:o.id}),'quiet'),miniBtn('저장',()=>saveCollage(ids,comboName(o)),'quiet')),
+    ids.length?el('button',{type:'button',className:'collage',onclick:()=>openPicker({mode:'combo',comboId:o.id}),'aria-label':comboName(o)+' 수정'},collageImg(ids)):el('p',{className:'muted sm',style:'margin:0',textContent:'옷이 모두 삭제됐어요. 수정에서 다시 고르세요.'}),
     el('div',{className:'combo-days'},el('span',{className:'lbl',textContent:'넣기'}),...DAYS.map(d=>el('button',{type:'button',className:'dbtn',textContent:d,'aria-label':DAY_FULL[d]+'에 넣기',disabled:!ids.length,onclick:()=>applyCombo(o,d)}))));
 }
 function openApply(day){

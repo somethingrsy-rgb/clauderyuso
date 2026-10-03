@@ -236,17 +236,24 @@ async function fitAll(){
 function chip(label,on,fn){return el('button',{className:'chip'+(on?' on':''),type:'button',textContent:label,onclick:fn})}
 function dot(c){return el('i',{className:'dot',style:`background:${COLORS[c]||'#ccc'}`})}
 function card(it,onclick){
-  const b=el('button',{className:'item',type:'button',onclick});
-  b.append(el('span',{className:'ph'},el('img',{src:it.photo,alt:it.name,loading:'lazy'})),
+  const on=selMode&&selIds.includes(it.id),b=el('button',{className:'item'+(on?' sel':''),type:'button',onclick});
+  b.append(el('span',{className:'ph'},el('img',{src:it.photo,alt:it.name,loading:'lazy'}),...(on?[el('span',{className:'chk',textContent:'✓'})]:[])),
     el('span',{className:'meta'},el('b',{textContent:it.name||it.cat}),el('small',{},dot(it.color),`${it.color} · ${it.cat}`)));
   return b}
+// 옷장에서 여러 벌을 눌러 골라 코디로 저장 (종류별 한 벌 규칙은 코디 만들기와 같음)
+let selMode=false,selIds=[];
+function setSel(on){
+  selMode=on;selIds=[];$('#selbar').hidden=!on;$('#fab').hidden=on;$('#btn-sel').textContent=on?'취소':'선택';
+  renderCloset();updateSel();
+}
+function updateSel(){$('#selcount').textContent=`${selIds.length}벌 선택`;$('#selsave').disabled=!selIds.length}
 const born=i=>i.createdAt||i.updatedAt||0;   // 등록한 시각 (예전에 올린 옷은 마지막으로 고친 시각)
 function renderCloset(){
   const f=$('#filter-cat');f.replaceChildren(...['전체',...CATS].map(c=>chip(`${c} ${c==='전체'?items.length:items.filter(i=>i.cat===c).length}`,c===filter,()=>{filter=c;renderCloset()})));
   const q=$('#q').value.trim().toLowerCase(),so=$('#sort').value;
   const list=items.filter(i=>(filter==='전체'||i.cat===filter)&&(!q||[i.name,i.cat,i.color].join(' ').toLowerCase().includes(q)))
     .sort(so==='name'?(a,b)=>(a.name||a.cat).localeCompare(b.name||b.cat,'ko'):so==='cat'?(a,b)=>(CATS.indexOf(a.cat)+1||99)-(CATS.indexOf(b.cat)+1||99)||born(b)-born(a):(a,b)=>born(b)-born(a));
-  const open=i=>card(i,()=>openDlg(i));
+  const open=i=>card(i,()=>{if(!selMode)return openDlg(i);selIds=toggleSel(selIds,i.id);renderCloset();updateSel()});
   let nodes;
   if(!list.length&&items.length)nodes=[el('p',{className:'none',textContent:'조건에 맞는 옷이 없어요.'})];
   else if(filter==='전체'&&so==='cat'){          // 전체 + 종류순: 상의 → 하의 → 원피스 → 아우터 → 신발 → 액세서리 묶음으로 나열
@@ -313,6 +320,8 @@ function openDlg(it){
   $('#btn-del').hidden=!it;$('#dlg').showModal();$('#dlg').scrollTop=0;
 }
 $('#q').oninput=renderCloset;$('#sort').onchange=renderCloset;
+$('#btn-sel').onclick=()=>{if(selMode||items.length)setSel(!selMode)};
+$('#selsave').onclick=()=>{openPicker({mode:'combo',ids:selIds});setSel(false)};
 $('#fab').onclick=()=>openDlg();$('#empty-add').onclick=()=>openDlg();
 $('#btn-cancel').onclick=()=>$('#dlg').close();
 $('#photo').onchange=async e=>{const f=e.target.files[0];if(!f)return;
@@ -394,10 +403,11 @@ function recommend(tk=temp,opt={}){
 /* ---------- 탭 / 시작 ---------- */
 const TITLES={closet:['MY CLOSET','옷장'],combo:['OUTFITS','코디'],week:['THIS WEEK','주간']};
 document.querySelectorAll('.dock button[data-tab]').forEach(b=>b.onclick=()=>{
+  if(selMode)setSel(false);
   document.querySelectorAll('.dock button[data-tab],.tab').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');$('#tab-'+b.dataset.tab).classList.add('active');
   $('#eyebrow').textContent=TITLES[b.dataset.tab][0];$('#title').textContent=TITLES[b.dataset.tab][1];
-  $('#count').hidden=b.dataset.tab!=='closet';$('#fab').hidden=b.dataset.tab!=='closet';window.scrollTo({top:0});
+  $('#count').hidden=$('#btn-sel').hidden=b.dataset.tab!=='closet';$('#fab').hidden=b.dataset.tab!=='closet';window.scrollTo({top:0});
 });
 (async()=>{
   renderCatChips();renderSwatches();db=await open();await migrateIds();initPlanner();await refresh();initCloud();
