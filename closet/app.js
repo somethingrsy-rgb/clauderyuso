@@ -170,6 +170,7 @@ async function refresh(){
   plans=Object.fromEntries((await all('plans')).map(p=>[p.day,p]));
   renderCloset();renderWeek();
   $('#count').textContent=items.length?`총 ${items.length}벌`:'';
+  fitAll();
 }
 
 /* ---------- 이미지 리사이즈 (저장 용량 절약) ---------- */
@@ -179,6 +180,58 @@ function resize(file,max=640){return new Promise((res,rej)=>{
     const c=el('canvas',{width:Math.round(img.width*k),height:Math.round(img.height*k)});
     c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);res(c.toDataURL('image/jpeg',.82))};
   img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error('이미지를 읽을 수 없어요'))};img.src=url})}
+
+/* ---------- 사진 크기 맞추기: 옷 부분만 잘라서 3:4 칸에 늘 같은 여백으로 다시 놓음 ---------- */
+const FIT_W=480,FIT_H=640,FIT_FILL=.86;
+function fitPhoto(url){return new Promise(res=>{
+  const img=new Image();
+  img.onerror=()=>res(url);
+  img.onload=()=>{try{
+    const w=img.naturalWidth,h=img.naturalHeight;
+    const c=el('canvas',{width:w,height:h}),x=c.getContext('2d',{willReadFrequently:true});x.drawImage(img,0,0);
+    const d=x.getImageData(0,0,w,h).data;
+    let clear=0;for(let i=3;i<d.length;i+=4)if(d[i]<250)clear++;
+    const alphaMode=clear>w*h*.02;                        // 배경을 지운 사진은 투명도로, 아니면 가장자리 색과 다른 곳을 옷으로 봄
+    const bgc=[255,255,255];
+    if(!alphaMode){
+      const px=[[],[],[]],at=(X,Y)=>{const i=(Y*w+X)*4;for(let k=0;k<3;k++)px[k].push(d[i+k])};
+      for(let X=0;X<w;X++){at(X,0);at(X,h-1)}for(let Y=1;Y<h-1;Y++){at(0,Y);at(w-1,Y)}
+      for(let k=0;k<3;k++){px[k].sort((a,b)=>a-b);bgc[k]=px[k][px[k].length>>1]}   // 중앙값이라 옷이 가장자리에 닿아도 괜찮음
+    }
+    const rows=new Uint32Array(h),cols=new Uint32Array(w);let n=0;
+    for(let Y=0,i=0;Y<h;Y++)for(let X=0;X<w;X++,i+=4){
+      const on=alphaMode?d[i+3]>40:Math.abs(d[i]-bgc[0])+Math.abs(d[i+1]-bgc[1])+Math.abs(d[i+2]-bgc[2])>36;
+      if(on){rows[Y]++;cols[X]++;n++}
+    }
+    if(n<w*h*.03)return res(url);                        // 옷을 못 찾으면(흰 옷+흰 배경 등) 그대로 둠
+    const tr=Math.max(2,w*.004),tc=Math.max(2,h*.004);   // 먼지 같은 점은 무시
+    let x0=0,x1=w-1,y0=0,y1=h-1;
+    while(x0<x1&&cols[x0]<tc)x0++;while(x1>x0&&cols[x1]<tc)x1--;
+    while(y0<y1&&rows[y0]<tr)y0++;while(y1>y0&&rows[y1]<tr)y1--;
+    const mx=Math.round((x1-x0)*.02),my=Math.round((y1-y0)*.02);
+    x0=Math.max(0,x0-mx);x1=Math.min(w-1,x1+mx);y0=Math.max(0,y0-my);y1=Math.min(h-1,y1+my);
+    const bw=x1-x0+1,bh=y1-y0+1,k=Math.min(FIT_W*FIT_FILL/bw,FIT_H*FIT_FILL/bh,3);
+    const o=el('canvas',{width:FIT_W,height:FIT_H}),g=o.getContext('2d');
+    if(!alphaMode){g.fillStyle=`rgb(${bgc})`;g.fillRect(0,0,FIT_W,FIT_H)}
+    g.imageSmoothingQuality='high';
+    g.drawImage(c,x0,y0,bw,bh,(FIT_W-bw*k)/2,(FIT_H-bh*k)/2,bw*k,bh*k);
+    let u=o.toDataURL('image/webp',.85);
+    if(!u.startsWith('data:image/webp'))u=o.toDataURL(alphaMode?'image/png':'image/jpeg',.85);
+    res(u.length<700000?u:url);                          // Firestore 문서 1MB 제한
+  }catch{res(url)}};
+  img.src=url})}
+// 예전에 올린 사진도 한 번씩 맞춤 (fit 표시가 없는 것만)
+let fitting=false;
+async function fitAll(){
+  if(fitting)return;fitting=true;let n=0;
+  try{
+    for(const it of items){
+      if(it.fit||!it.photo)continue;
+      await put('items',{...it,createdAt:it.createdAt||it.updatedAt,photo:await fitPhoto(it.photo),fit:1});n++;   // 목록 순서가 바뀌지 않게 등록 시각을 고정
+    }
+  }finally{fitting=false}
+  if(n){await refresh();toast(`옷 사진 ${n}장의 크기를 맞췄어요`)}
+}
 
 /* ---------- 옷장 화면 ---------- */
 function chip(label,on,fn){return el('button',{className:'chip'+(on?' on':''),type:'button',textContent:label,onclick:fn})}
@@ -267,8 +320,10 @@ $('#photo').onchange=async e=>{const f=e.target.files[0];if(!f)return;
   try{photoData=await resize(f);$('#preview').src=photoData;$('#preview').hidden=false;await setupCut(photoData)}catch(err){alert(err.message)}};
 $('#form').onsubmit=async e=>{
   if(!photoData){e.preventDefault();alert('사진을 선택해 주세요');return}
+  const raw=BgCut.dirty?BgCut.encode():photoData;
+  const same=editing&&editing.fit&&raw===editing.photo;       // 사진을 안 바꿨으면 다시 맞추지 않음
   const it={...(editing||{createdAt:Date.now()}),name:$('#f-name').value.trim(),cat:selCat,color:selColor,
-    seasons:[...seasonSel],photo:BgCut.dirty?BgCut.encode():photoData};
+    seasons:[...seasonSel],photo:same?raw:await fitPhoto(raw),fit:1};
   if(!it.seasons.length)it.seasons=[...SEASONS];
   await put('items',it);await refresh();
 };
