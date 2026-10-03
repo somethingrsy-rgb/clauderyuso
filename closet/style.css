@@ -131,9 +131,8 @@ select:focus-visible{outline-color:var(--accent)}
 .wd-name{font-size:22px;font-weight:800;letter-spacing:-.03em}
 .wd-date{font-size:13px;color:var(--muted)}
 .wsel{margin-left:auto;min-width:0;max-width:150px;padding:7px 10px;font-size:12.5px;border-radius:10px}
-.wd-strip{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;border:0;background:none;padding:0;text-align:left;width:100%;min-width:0}
-.wd-strip::-webkit-scrollbar{display:none}
-.wd-empty{border:1.5px dashed var(--line);background:none;border-radius:14px;min-height:130px;color:var(--muted);font-weight:600;width:100%}
+.wd-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:12px 10px;border:0;background:none;padding:0;text-align:left;width:100%;min-width:0}
+.wd-empty{border:1.5px dashed var(--line);background:none;border-radius:14px;min-height:130px;color:var(--muted);font-weight:600;width:100%;grid-column:1/-1}
 .wd-acts{display:flex;gap:6px;flex-wrap:wrap}
 .mini-btn.quiet{background:none;color:var(--muted);box-shadow:0 0 0 1px var(--line)}
 .combos{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;padding:0 22px}
@@ -176,8 +175,8 @@ select:focus-visible{outline-color:var(--accent)}
 .mini-btn{border:0;background:var(--sunk);border-radius:10px;padding:8px 12px;font-size:13px;font-weight:600}
 .strip{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
 .strip::-webkit-scrollbar{display:none}
-.piece{flex:none;width:128px}   /* 크게 보이게: 폰에서 두 벌 + 다음 옷이 살짝 보이고 옆으로 넘김 */
-.piece img{display:block;box-sizing:border-box;width:100%;aspect-ratio:3/4;object-fit:contain;border-radius:14px;background:var(--photo);border:1px solid var(--line)}   /* 바깥 그림자는 overflow 스트립 가장자리에서 잘려서 실제 border로 */
+.piece{min-width:0}   /* 폭에 맞춰 줄바꿈: 폰에서는 한 줄에 2개씩 크게, 고른 옷이 전부 보임 */
+.piece img{display:block;box-sizing:border-box;width:100%;aspect-ratio:3/4;object-fit:contain;border-radius:14px;background:var(--photo);border:1px solid var(--line)}
 .piece small{display:block;margin-top:6px;font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sm{font-size:13px}.look>.muted.sm{margin:0 0 12px}
 
