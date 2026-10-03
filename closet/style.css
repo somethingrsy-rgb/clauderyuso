@@ -127,6 +127,8 @@ select:focus-visible{outline-color:var(--accent)}
 .weekplan{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;padding:16px 22px 0}
 .wd{min-width:0;background:var(--surface);border-radius:20px;padding:14px;box-shadow:0 0 0 1px var(--line);display:grid;gap:12px;align-content:start}
 .wd.now{box-shadow:0 0 0 2px var(--accent)}
+#today{margin:12px 22px 0}#today .wd-name{font-size:26px}
+.today-empty{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.today-empty p{flex:1 0 100%;margin:0}
 .wd-head{display:flex;align-items:center;gap:8px}
 .wd-name{font-size:22px;font-weight:800;letter-spacing:-.03em}
 .wd-date{font-size:13px;color:var(--muted)}
