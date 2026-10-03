@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f1f2e">
+<title>내 옷장</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><h1>👗 내 옷장</h1><span id="count"></span></header>
+
+<main>
+  <section id="tab-closet" class="tab active">
+    <div class="chips" id="filter-cat"></div>
+    <div id="grid" class="grid"></div>
+    <p id="empty" class="muted" hidden>아직 등록된 옷이 없어요. 아래 ＋ 버튼으로 사진을 추가해 보세요.</p>
+  </section>
+
+  <section id="tab-outfit" class="tab">
+    <div class="card">
+      <label>오늘 날씨
+        <select id="temp">
+          <option value="hot">더워요 (25°↑)</option>
+          <option value="mild" selected>적당해요 (15~24°)</option>
+          <option value="cool">쌀쌀해요 (5~14°)</option>
+          <option value="cold">추워요 (5°↓)</option>
+        </select>
+      </label>
+      <button id="btn-weather" class="ghost">📍 현재 날씨로 설정</button>
+      <small id="weather-msg" class="muted"></small>
+      <label>분위기
+        <select id="mood">
+          <option value="any">상관없음</option>
+          <option value="neutral">차분하게 (무채색 위주)</option>
+          <option value="color">포인트 컬러</option>
+        </select>
+      </label>
+      <button id="btn-recommend" class="primary">코디 추천받기</button>
+    </div>
+    <div id="outfit-result"></div>
+    <h3>저장한 코디</h3>
+    <div id="saved" class="saved"></div>
+  </section>
+</main>
+
+<button id="fab" aria-label="옷 추가">＋</button>
+
+<nav>
+  <button data-tab="closet" class="active">옷장</button>
+  <button data-tab="outfit">코디</button>
+</nav>
+
+<dialog id="dlg">
+  <form method="dialog" id="form">
+    <h2 id="dlg-title">옷 추가</h2>
+    <img id="preview" alt="" hidden>
+    <label class="file">사진 선택/촬영
+      <input type="file" id="photo" accept="image/*">
+    </label>
+    <label>이름 <input id="f-name" placeholder="예: 흰색 옥스포드 셔츠"></label>
+    <label>종류
+      <select id="f-cat"></select>
+    </label>
+    <label>색상
+      <select id="f-color"></select>
+    </label>
+    <fieldset><legend>입을 수 있는 계절</legend><div id="f-seasons" class="chips"></div></fieldset>
+    <div class="row">
+      <button type="button" id="btn-del" class="danger" hidden>삭제</button>
+      <span class="spacer"></span>
+      <button type="button" id="btn-cancel" class="ghost">취소</button>
+      <button type="submit" class="primary">저장</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>
