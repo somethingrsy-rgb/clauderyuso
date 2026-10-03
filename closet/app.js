@@ -48,9 +48,11 @@ function card(it,onclick){
     el('span',{className:'meta'},el('b',{textContent:it.name||it.cat}),el('small',{},dot(it.color),`${it.color} · ${it.cat}`)));
   return b}
 function renderCloset(){
-  const f=$('#filter-cat');f.replaceChildren(...['전체',...CATS].map(c=>chip(c,c===filter,()=>{filter=c;renderCloset()})));
-  const list=items.filter(i=>filter==='전체'||i.cat===filter);
-  $('#grid').replaceChildren(...list.map(i=>card(i,()=>openDlg(i))));
+  const f=$('#filter-cat');f.replaceChildren(...['전체',...CATS].map(c=>chip(`${c} ${c==='전체'?items.length:items.filter(i=>i.cat===c).length}`,c===filter,()=>{filter=c;renderCloset()})));
+  const q=$('#q').value.trim().toLowerCase(),so=$('#sort').value;
+  const list=items.filter(i=>(filter==='전체'||i.cat===filter)&&(!q||[i.name,i.cat,i.color].join(' ').toLowerCase().includes(q)))
+    .sort(so==='name'?(a,b)=>(a.name||a.cat).localeCompare(b.name||b.cat,'ko'):so==='cat'?(a,b)=>CATS.indexOf(a.cat)-CATS.indexOf(b.cat)||b.id-a.id:(a,b)=>b.id-a.id);
+  $('#grid').replaceChildren(...(list.length||!items.length?list.map(i=>card(i,()=>openDlg(i))):[el('p',{className:'none',textContent:'조건에 맞는 옷이 없어요.'})]));
   $('#empty').hidden=items.length>0;$('#filter-cat').hidden=!items.length;
 }
 
@@ -73,6 +75,7 @@ function openDlg(it){
   seasonSel=new Set(it?it.seasons:SEASONS);renderSeasonChips(seasonSel);
   $('#btn-del').hidden=!it;$('#dlg').showModal();$('#dlg').scrollTop=0;
 }
+$('#q').oninput=renderCloset;$('#sort').onchange=renderCloset;
 $('#fab').onclick=()=>openDlg();$('#empty-add').onclick=()=>openDlg();
 $('#btn-cancel').onclick=()=>$('#dlg').close();
 $('#photo').onchange=async e=>{const f=e.target.files[0];if(!f)return;
