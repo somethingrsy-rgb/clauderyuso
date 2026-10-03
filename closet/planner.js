@@ -171,7 +171,6 @@ function initPlanner(){
   $('#btn-clear-week').onclick=e=>clearWeek(e.currentTarget);
   $('#btn-new-combo').onclick=()=>openPicker({mode:'combo'});
   $('#pk-save-btn').onclick=registerFromDay;
-  $('#btn-open-week').onclick=()=>document.querySelector('.dock button[data-tab=week]').click();
   for(const id of ['#d-pick','#d-apply']){
     document.querySelectorAll(id+' [data-close]').forEach(b=>b.onclick=()=>$(id).close());
     $(id).addEventListener('click',e=>{if(e.target===$(id))$(id).close()});
