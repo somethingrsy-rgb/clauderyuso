@@ -1,8 +1,8 @@
 'use strict';
 const CATS=['상의','하의','원피스','아우터','신발','액세서리'];
 const SEASONS=['봄','여름','가을','겨울'];
-const COLORS={검정:'#111',흰색:'#fff',회색:'#999',베이지:'#d9c3a0',네이비:'#1f2a56',데님:'#4a6a96',갈색:'#7a5230',빨강:'#d03a3a',주황:'#ee8a2b',노랑:'#f2d33b',초록:'#3f9a5a',파랑:'#2f6fe0',보라:'#7a4fc4',분홍:'#f0a0c0'};
-const NEUTRAL=new Set(['검정','흰색','회색','베이지','네이비','데님','갈색']);
+const COLORS={검정:'#111',흰색:'#fff',아이보리:'#f1ead8',회색:'#999',베이지:'#d9c3a0',갈색:'#7a5230',카키:'#7a7a4a',네이비:'#1f2a56',데님:'#4a6a96',버건디:'#6e2536',빨강:'#d03a3a',주황:'#ee8a2b',머스타드:'#d4a62a',노랑:'#f2d33b',초록:'#3f9a5a',민트:'#a5d6c8',하늘색:'#9ec8ea',파랑:'#2f6fe0',라벤더:'#b9a6dd',보라:'#7a4fc4',분홍:'#f0a0c0'};
+const NEUTRAL=new Set(['검정','흰색','아이보리','회색','베이지','네이비','데님','갈색','카키']);
 // 온도 → 계절 / 아우터 필요 여부
 const TEMP={hot:{s:['여름'],outer:false},mild:{s:['봄','가을'],outer:false},cool:{s:['봄','가을'],outer:true},cold:{s:['겨울'],outer:true}};
 
@@ -269,24 +269,44 @@ $('#btn-del').onclick=async()=>{
 
 /* ---------- 코디 추천 ---------- */
 const pick=a=>a[Math.floor(Math.random()*a.length)];
+// 색마다 계절별 어울림 점수 (봄, 여름, 가을, 겨울 순서, -2 ~ +2)
+const COLOR_SEASON={검정:[0,0,1,1],흰색:[1,2,0,1],아이보리:[2,1,1,1],회색:[0,0,1,1],베이지:[2,0,2,0],갈색:[0,-1,2,1],카키:[1,0,2,0],네이비:[0,1,2,2],데님:[1,1,1,0],
+  버건디:[-1,-2,2,2],빨강:[0,0,1,1],주황:[0,0,2,-1],머스타드:[0,-1,2,0],노랑:[1,1,0,-1],초록:[1,1,1,1],민트:[2,2,-2,-2],하늘색:[2,2,-1,-1],파랑:[0,1,0,0],라벤더:[2,1,-1,-1],보라:[0,0,1,1],분홍:[2,1,-1,0]};
+// 무채색이 아니어도 잘 어울리는 색 조합
+const HARMONY=[['버건디','네이비'],['머스타드','네이비'],['카키','버건디'],['카키','머스타드'],['버건디','머스타드'],['민트','분홍'],['하늘색','분홍'],['라벤더','하늘색'],['민트','하늘색']];
+function currentSeason(d=new Date()){const m=d.getMonth()+1;return m>=3&&m<=5?'봄':m>=6&&m<=8?'여름':m>=9&&m<=11?'가을':'겨울'}
+// 날씨 + 오늘 날짜로 어느 계절 옷차림인지 정함 (선선한 날은 지금이 봄이면 봄, 가을이면 가을)
+function targetSeason(tk,d=new Date()){
+  if(tk==='hot')return'여름';if(tk==='cold')return'겨울';
+  const c=currentSeason(d);return c==='봄'||c==='가을'?c:(d.getMonth()<6?'봄':'가을');
+}
 // 두 색 궁합 점수
 function pairScore(a,b){
   if(a===b)return NEUTRAL.has(a)?2:1;            // 톤온톤
   const na=NEUTRAL.has(a),nb=NEUTRAL.has(b);
   if(na&&nb)return (a==='검정'&&b==='네이비')||(a==='네이비'&&b==='검정')||(a==='갈색'&&b==='검정')||(a==='검정'&&b==='갈색')?-1:2;
   if(na||nb)return 2;                            // 무채색 + 컬러
-  return -2;                                     // 컬러 + 다른 컬러는 피함
+  return HARMONY.some(([x,y])=>(x===a&&y===b)||(x===b&&y===a))?1.5:-2;   // 컬러끼리는 어울리는 조합만 허용
 }
-function outfitScore(parts,mood){
+function outfitScore(parts,mood,season){
   const cs=parts.map(p=>p.color);let s=0;
   for(let i=0;i<cs.length;i++)for(let j=i+1;j<cs.length;j++)s+=pairScore(cs[i],cs[j]);
   const colorful=new Set(cs.filter(c=>!NEUTRAL.has(c))).size;
   if(mood==='neutral')s+=colorful?-3:3;
   if(mood==='color')s+=colorful===1?3:-2;
+  if(season){
+    const si=SEASONS.indexOf(season);
+    for(const p of parts){
+      const w=(p.cat==='신발'||p.cat==='액세서리')?.3:1,cs2=(COLOR_SEASON[p.color]||[0,0,0,0])[si];
+      s+=cs2*.9*w;                                 // 그 계절에 어울리는 색은 가점, 안 어울리면 감점
+      if(cs2<=-2&&w===1)s-=2;                      // 계절과 정반대인 색(가을의 민트 등)은 더 감점
+      if(p.seasons&&p.seasons.includes(season))s+=.6*w;   // 그 계절용으로 등록한 옷 우대
+    }
+  }
   return s+Math.random()*1.5;                    // 매번 다른 결과
 }
 function recommend(tk=temp,opt={}){
-  const t=TEMP[tk],usage=opt.usage||{},near=opt.near||new Set();
+  const t=TEMP[tk],usage=opt.usage||{},near=opt.near||new Set(),season=targetSeason(tk);
   const ok=c=>items.filter(i=>i.cat===c&&i.seasons.some(s=>t.s.includes(s)));
   const tops=ok('상의'),bottoms=ok('하의'),dresses=ok('원피스'),outers=ok('아우터'),shoes=ok('신발'),accs=ok('액세서리');
   const bases=[];
@@ -302,7 +322,7 @@ function recommend(tk=temp,opt={}){
     else if(!t.outer&&outers.length&&Math.random()<.25)parts.push(pick(outers));
     if(shoes.length)parts.push(pick(shoes));
     if(accs.length&&Math.random()<.4)parts.push(pick(accs));
-    const s=outfitScore(parts,mood)-repeat(parts);
+    const s=outfitScore(parts,mood,season)-repeat(parts);
     if(s>bs){bs=s;best=parts}
   }
   return best;
