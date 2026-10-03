@@ -40,12 +40,32 @@ function renderWeek(){
   $('#week-sum').textContent=planned?`${planned}일 계획됨 · 옷 ${pieces}벌`:'아직 비어 있어요';
   $('#btn-clear-week').hidden=!planned;
   box.replaceChildren(...DAYS.map((d,i)=>dayCard(d,i,dates[i],ti)));
+  renderToday();
   renderCombos();
+}
+function tempSel(d){
+  const sel=el('select',{className:'wsel','aria-label':DAY_FULL[d]+' 날씨'},...Object.entries(TEMP_LABEL).map(([k,[l,sub]])=>el('option',{value:k,textContent:`${l} ${sub}`,selected:k===(planOf(d).temp||'mild')})));
+  sel.onchange=async()=>{await savePlan(d,{temp:sel.value});renderWeek()};   // 맨 위 카드와 요일 칸의 날씨를 같이 맞춤
+  return sel;
+}
+// 맨 위 카드: 오늘(일요일엔 내일=월요일)의 코디를 크게. 비어 있으면 추천받기
+function renderToday(){
+  const box=$('#today');if(!box)return;
+  const i=nextWeek()?0:todayIdx(),d=DAYS[i],date=weekDates()[i],ids=sortIds(planOf(d).ids);
+  const open=()=>openPicker({mode:'day',day:d});
+  box.replaceChildren(
+    el('div',{className:'wd-head'},el('b',{className:'wd-name',textContent:nextWeek()?'내일':'오늘'}),
+      el('span',{className:'wd-date',textContent:`${DAY_FULL[d]} ${date.getMonth()+1}/${date.getDate()}`}),tempSel(d)),
+    ids.length
+      ?el('button',{type:'button',className:'wd-strip',onclick:open,'aria-label':DAY_FULL[d]+' 옷 바꾸기'},...thumbs(ids))
+      :el('div',{className:'today-empty'},el('p',{className:'muted sm',textContent:'아직 정하지 않았어요'}),
+        el('button',{type:'button',className:'primary small',textContent:'추천받기',onclick:()=>recommendDay(d)}),miniBtn('직접 고르기',open)),
+    ...(ids.length?[el('div',{className:'wd-acts'},miniBtn('바꾸기',open),miniBtn('다시 추천',()=>recommendDay(d)),
+      miniBtn('비우기',async()=>{await savePlan(d,{ids:[]});renderWeek()},'quiet'))]:[]));
 }
 function dayCard(d,i,date,ti){
   const p=planOf(d),ids=sortIds(p.ids);
-  const sel=el('select',{className:'wsel','aria-label':DAY_FULL[d]+' 날씨'},...Object.entries(TEMP_LABEL).map(([k,[l,sub]])=>el('option',{value:k,textContent:`${l} ${sub}`,selected:k===(p.temp||'mild')})));
-  sel.onchange=async()=>{await savePlan(d,{temp:sel.value})};
+  const sel=tempSel(d);
   const head=el('div',{className:'wd-head'},el('b',{className:'wd-name',textContent:d}),el('span',{className:'wd-date',textContent:`${date.getMonth()+1}/${date.getDate()}`}),
     ...(i===ti?[el('span',{className:'today',textContent:'오늘'})]:[]),sel);
   const open=()=>openPicker({mode:'day',day:d});
