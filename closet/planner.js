@@ -96,10 +96,13 @@ async function drawCollage(ids){
   flat.forEach((s,n)=>{const b=cuts[n],k=Math.min(s.w/b.w,s.h/b.h);s.cut=b;s.w=b.w*k;s.h=b.h*k});
   // 사진마다 크기가 제각각이라, 상의(없으면 원피스)를 기준으로 폭이 현실적인 비율이 되게 맞춤
   const ref=flat.find(s=>s.it.cat==='상의')||flat.find(s=>s.it.cat==='원피스')||flat[0];
-  const REL={하의:[.85,1.1],아우터:[1,1.2],신발:[.4,.6],액세서리:[.3,.5]};   // 기준 폭에 대한 비율 범위
+  const REL={하의:[.7,1.05],아우터:[1,1.2],신발:[.4,.6],액세서리:[.3,.5]};   // 기준 폭에 대한 비율 범위
   const refW=ref.w;
   flat.forEach(s=>{const r=REL[s.it.cat];if(!r||s===ref)return;
-    const k=Math.min(Math.max(s.w,r[0]*refW),r[1]*refW)/s.w;s.w*=k;s.h*=k});
+    const k=Math.min(Math.max(s.w,r[0]*refW),r[1]*refW)/s.w;s.w*=k;s.h*=k;
+    if(s.it.cat==='하의'&&s.h>1.55*ref.h){                       // 하의 길이는 상의의 1.5배 안팎까지 (폭은 .55배 아래로는 안 줄임)
+      const k2=Math.max(1.55*ref.h/s.h,.55*refW/s.w);s.w*=k2;s.h*=k2}
+  });
   cols.forEach(c=>{c.w=Math.max(...c.items.map(s=>s.w));c.h=c.items.reduce((a,s)=>a+s.h,0)+c.gap*(c.items.length-1)});
   const GAPX=30,W=cols.reduce((a,c)=>a+c.w,0)+GAPX*(cols.length-1),H=Math.max(...cols.map(c=>c.h));
   const f=Math.min(1.5,(CW-48)/W,(CH-48)/H);                // 한 덩어리로 키워서 캔버스를 채움
