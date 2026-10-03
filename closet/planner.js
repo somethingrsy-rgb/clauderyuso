@@ -160,20 +160,45 @@ function tempSel(d){
   sel.onchange=async()=>{await savePlan(d,{temp:sel.value});renderWeek()};   // 맨 위 카드와 요일 칸의 날씨를 같이 맞춤
   return sel;
 }
-// 맨 위 카드: 오늘(일요일엔 내일=월요일)의 코디를 크게. 비어 있으면 추천받기
-function renderToday(){
-  const box=$('#today');if(!box)return;
-  const i=nextWeek()?0:todayIdx(),d=DAYS[i],date=weekDates()[i],ids=sortIds(planOf(d).ids);
-  const open=()=>openPicker({mode:'day',day:d});
-  box.replaceChildren(
-    el('div',{className:'wd-head'},el('b',{className:'wd-name',textContent:nextWeek()?'내일':'오늘'}),
-      el('span',{className:'wd-date',textContent:`${DAY_FULL[d]} ${date.getMonth()+1}/${date.getDate()}`}),tempSel(d)),
+// 맨 위 카드: 오늘(일요일엔 내일=월요일)부터 하루씩 7장을 옆으로 넘겨 봄. 비어 있는 날은 추천받기
+const TGAP=28;let todayPos=0;
+function todaySlides(){
+  const t=new Date(),idx=todayIdx(),start=nextWeek()?1:0;
+  return Array.from({length:7},(_,j)=>{
+    const off=start+j,date=new Date(t);date.setDate(t.getDate()+off);
+    const d=DAYS[(idx+off)%7],md=`${date.getMonth()+1}/${date.getDate()}`;
+    return{d,label:off===0?'오늘':off===1?'내일':DAY_FULL[d],sub:off<2?`${DAY_FULL[d]} ${md}`:md};
+  });
+}
+function todaySlide(s){
+  const d=s.d,ids=sortIds(planOf(d).ids),open=()=>openPicker({mode:'day',day:d});
+  return el('div',{className:'tslide'},
+    el('div',{className:'wd-head'},el('b',{className:'wd-name',textContent:s.label}),el('span',{className:'wd-date',textContent:s.sub}),tempSel(d)),
     ids.length
       ?el('button',{type:'button',className:'collage',onclick:open,'aria-label':DAY_FULL[d]+' 옷 바꾸기'},collageImg(ids))
       :el('div',{className:'today-empty'},el('p',{className:'muted sm',textContent:'아직 정하지 않았어요'}),
         el('button',{type:'button',className:'primary small',textContent:'추천받기',onclick:()=>recommendDay(d)}),miniBtn('직접 고르기',open)),
     ...(ids.length?[el('div',{className:'wd-acts'},miniBtn('바꾸기',open),miniBtn('다시 추천',()=>recommendDay(d)),
       miniBtn('이미지 저장',()=>saveCollage(ids,`${DAY_FULL[d]} 코디`)),miniBtn('비우기',async()=>{await savePlan(d,{ids:[]});renderWeek()},'quiet'))]:[]));
+}
+function goToday(n,smooth=true){   // 카드가 가려져 있으면(폭 0) 탭으로 돌아올 때 app.js가 다시 불러줌
+  const tr=$('#today-track');if(tr)tr.scrollTo({left:Math.max(0,Math.min(6,n))*(tr.clientWidth+TGAP),behavior:smooth?'smooth':'instant'});
+}
+function markToday(){
+  document.querySelectorAll('#today .tdot').forEach((b,i)=>b.setAttribute('aria-current',i===todayPos));
+  const pv=$('#t-prev'),nx=$('#t-next');if(pv)pv.disabled=todayPos===0;if(nx)nx.disabled=todayPos===6;
+}
+function renderToday(){
+  const box=$('#today');if(!box)return;
+  const ss=todaySlides();
+  const track=el('div',{className:'today-track',id:'today-track',tabIndex:0,ariaLabel:'날짜별 코디, 옆으로 넘기기'},...ss.map(todaySlide));
+  track.onscroll=()=>{clearTimeout(track._t);track._t=setTimeout(()=>{if(track.clientWidth){todayPos=Math.round(track.scrollLeft/(track.clientWidth+TGAP));markToday()}},60)};
+  track.onkeydown=e=>{if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();goToday(todayPos+(e.key==='ArrowRight'?1:-1))}};
+  box.replaceChildren(track,el('div',{className:'today-nav'},
+    el('button',{type:'button',className:'tarrow',id:'t-prev',textContent:'‹','aria-label':'이전 날',onclick:()=>goToday(todayPos-1)}),
+    el('div',{className:'tdots'},...ss.map((s,i)=>el('button',{type:'button',className:'tdot','aria-label':s.label,onclick:()=>goToday(i)},el('i')))),
+    el('button',{type:'button',className:'tarrow',id:'t-next',textContent:'›','aria-label':'다음 날',onclick:()=>goToday(todayPos+1)})));
+  goToday(todayPos,false);markToday();   // 다시 그려도 보던 날짜에 머무름
 }
 function dayCard(d,i,date,ti){
   const p=planOf(d),ids=sortIds(p.ids);

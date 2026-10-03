@@ -128,7 +128,19 @@ select:focus-visible{outline-color:var(--accent)}
 .wd{min-width:0;background:var(--surface);border-radius:20px;padding:14px;box-shadow:0 0 0 1px var(--line);display:grid;gap:12px;align-content:start}
 .wd.now{box-shadow:0 0 0 2px var(--accent)}
 #today{margin:12px 22px 0}#today .wd-name{font-size:26px}
-.today-empty{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.today-empty p{flex:1 0 100%;margin:0}
+.today-empty{width:100%;max-width:340px;margin:0 auto;aspect-ratio:3/4;box-sizing:border-box;border:1.5px dashed var(--line);border-radius:14px;display:grid;place-content:center;justify-items:center;gap:10px}.today-empty p{margin:0}   /* 콜라주와 같은 크기의 빈 칸 */
+/* 오늘 카드: 하루씩 옆으로 넘김 */
+.today-track{display:flex;gap:28px;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:none}
+.today-track::-webkit-scrollbar{display:none}
+.today-track:focus-visible{outline:2px solid var(--fg);outline-offset:4px;border-radius:12px}
+.tslide{flex:0 0 100%;scroll-snap-align:start;display:grid;gap:12px;align-content:start;min-width:0}
+.today-nav{display:flex;align-items:center;justify-content:center;gap:6px}
+.tarrow{border:0;background:var(--sunk);width:32px;height:32px;border-radius:50%;font-size:16px;line-height:1;color:var(--fg)}
+.tarrow:disabled{opacity:.35}
+.tdots{display:flex;gap:2px}
+.tdot{border:0;background:none;padding:8px 5px;display:grid;place-items:center}
+.tdot i{display:block;width:7px;height:7px;border-radius:50%;background:var(--line);transition:.15s}
+.tdot[aria-current=true] i{background:var(--accent);width:18px;border-radius:4px}
 .wd-head{display:flex;align-items:center;gap:8px}
 .wd-name{font-size:22px;font-weight:800;letter-spacing:-.03em}
 .wd-date{font-size:13px;color:var(--muted)}
