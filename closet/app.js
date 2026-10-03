@@ -161,9 +161,8 @@ function initCloud(){
 
 /* ---------- 상태 ---------- */
 let items=[],outfits=[],filter='전체',editing=null,photoData=null,current=null;
-let selCat=CATS[0],selColor='검정',temp='mild',mood='any';
+let selCat=CATS[0],selColor='검정',temp='mild';
 const TEMP_LABEL={hot:['더워요','25°↑'],mild:['적당해요','15–24°'],cool:['쌀쌀해요','5–14°'],cold:['추워요','5°↓']};
-const MOOD_LABEL={any:'상관없음',neutral:'차분하게',color:'포인트'};
 
 async function refresh(){
   items=await all('items');outfits=await all('outfits');
@@ -355,12 +354,9 @@ function pairScore(a,b){
   if(na||nb)return 2;                            // 무채색 + 컬러
   return HARMONY.some(([x,y])=>(x===a&&y===b)||(x===b&&y===a))?1.5:-2;   // 컬러끼리는 어울리는 조합만 허용
 }
-function outfitScore(parts,mood,season){
+function outfitScore(parts,season){
   const cs=parts.map(p=>p.color);let s=0;
   for(let i=0;i<cs.length;i++)for(let j=i+1;j<cs.length;j++)s+=pairScore(cs[i],cs[j]);
-  const colorful=new Set(cs.filter(c=>!NEUTRAL.has(c))).size;
-  if(mood==='neutral')s+=colorful?-3:3;
-  if(mood==='color')s+=colorful===1?3:-2;
   if(season){
     const si=SEASONS.indexOf(season);
     for(const p of parts){
@@ -389,19 +385,10 @@ function recommend(tk=temp,opt={}){
     else if(!t.outer&&outers.length&&Math.random()<.25)parts.push(pick(outers));
     if(shoes.length)parts.push(pick(shoes));
     if(accs.length&&Math.random()<.4)parts.push(pick(accs));
-    const s=outfitScore(parts,mood,season)-repeat(parts);
+    const s=outfitScore(parts,season)-repeat(parts);
     if(s>bs){bs=s;best=parts}
   }
   return best;
-}
-
-/* ---------- 분할 버튼 ---------- */
-function seg(id,opts,get,set){
-  $(id).replaceChildren(...opts.map(([v,label,sub])=>el('button',{type:'button',className:get()===v?'on':'',role:'radio','aria-checked':get()===v,
-    onclick:()=>{set(v);renderSegs()}},label,...(sub?[el('br'),el('small',{textContent:sub,style:'opacity:.7;font-weight:400'})]:[]))));
-}
-function renderSegs(){
-  seg('#mood-seg',Object.entries(MOOD_LABEL).map(([k,l])=>[k,l]),()=>mood,v=>mood=v);
 }
 
 /* ---------- 탭 / 시작 ---------- */
@@ -413,6 +400,6 @@ document.querySelectorAll('.dock button[data-tab]').forEach(b=>b.onclick=()=>{
   $('#count').hidden=b.dataset.tab!=='closet';$('#fab').hidden=b.dataset.tab!=='closet';window.scrollTo({top:0});
 });
 (async()=>{
-  renderSegs();renderCatChips();renderSwatches();db=await open();await migrateIds();initPlanner();await refresh();initCloud();
+  renderCatChips();renderSwatches();db=await open();await migrateIds();initPlanner();await refresh();initCloud();
   if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();

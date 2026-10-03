@@ -40,17 +40,9 @@
   </section>
 
   <section id="tab-week" class="tab active">
-    <div class="panel">
-      <p class="muted sm" id="week-sum" style="margin:0"></p>
-      <div class="field">
-        <span class="lbl">추천 분위기</span>
-        <div class="seg" id="mood-seg" role="radiogroup"></div>
-      </div>
-      <div class="row">
-        <button id="btn-fill-week" class="primary small">빈 날짜 추천으로 채우기</button>
-        <button id="btn-clear-week" class="ghost small">모두 비우기</button>
-      </div>
-      <small class="muted">요일 칸을 눌러 옷을 직접 고를 수 있어요. 요일마다 날씨를 정해 두면 추천이 그 날씨에 맞춰요.</small>
+    <div class="panel bar">
+      <p class="muted sm" id="week-sum"></p>
+      <button id="btn-clear-week" class="ghost small">모두 비우기</button>
     </div>
     <div id="week-grid" class="weekplan"></div>
     <h2 class="section">자주 입는 조합</h2>

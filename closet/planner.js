@@ -36,7 +36,8 @@ function renderWeek(){
   const dates=weekDates(),ti=todayIdx();
   const planned=DAYS.filter(d=>sortIds(planOf(d).ids).length).length;
   const pieces=new Set(DAYS.flatMap(d=>sortIds(planOf(d).ids))).size;
-  $('#week-sum').textContent=planned?`${planned}일 계획됨 · 옷 ${pieces}벌`:'아직 비어 있어요. 요일 칸을 눌러 옷을 골라 보세요.';
+  $('#week-sum').textContent=planned?`${planned}일 계획됨 · 옷 ${pieces}벌`:'아직 비어 있어요';
+  $('#btn-clear-week').hidden=!planned;
   box.replaceChildren(...DAYS.map((d,i)=>dayCard(d,i,dates[i],ti)));
   renderCombos();
 }
@@ -62,15 +63,9 @@ async function recommendDay(d,silent){
   if(!r){if(!silent)toast('이 날씨에 맞는 상의+하의(또는 원피스)가 부족해요.');return false}
   await savePlan(d,{ids:sortIds(r.map(p=>p.id))});if(!silent)renderWeek();return true;
 }
-async function fillEmptyDays(){
-  const empty=DAYS.filter(d=>!sortIds(planOf(d).ids).length);
-  if(!empty.length){toast('비어 있는 요일이 없어요.');return}
-  let ok=0;for(const d of empty)if(await recommendDay(d,true))ok++;
-  renderWeek();toast(ok?`${ok}일을 추천으로 채웠어요.`:'이 날씨에 맞는 옷이 부족해요. 옷을 더 등록하거나 날씨를 바꿔 보세요.',4000);
-}
 let clearArmed=false;
 async function clearWeek(btn){
-  if(!clearArmed){clearArmed=true;btn.textContent='한 번 더 누르면 모두 비워요';setTimeout(()=>{clearArmed=false;btn.textContent='모두 비우기'},3500);return}
+  if(!clearArmed){clearArmed=true;btn.textContent='한 번 더';setTimeout(()=>{clearArmed=false;btn.textContent='모두 비우기'},3500);return}
   clearArmed=false;btn.textContent='모두 비우기';
   for(const d of DAYS)if(plans[d]&&plans[d].ids.length)await savePlan(d,{ids:[]});
   renderWeek();
@@ -167,7 +162,6 @@ async function scrubItem(id){
 }
 
 function initPlanner(){
-  $('#btn-fill-week').onclick=fillEmptyDays;
   $('#btn-clear-week').onclick=e=>clearWeek(e.currentTarget);
   $('#btn-new-combo').onclick=()=>openPicker({mode:'combo'});
   $('#pk-save-btn').onclick=registerFromDay;
