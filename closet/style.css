@@ -179,7 +179,7 @@ select:focus-visible{outline-color:var(--accent)}
 .strip{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
 .strip::-webkit-scrollbar{display:none}
 .piece{flex:none;width:84px}
-.piece img{display:block;width:84px;height:106px;object-fit:contain;border-radius:12px;background:var(--photo);box-shadow:0 0 0 1px var(--line)}
+.piece img{display:block;box-sizing:border-box;width:84px;height:106px;object-fit:contain;border-radius:12px;background:var(--photo);border:1px solid var(--line)}   /* 바깥 그림자는 overflow 스트립 가장자리에서 잘려서 실제 border로 */
 .piece small{display:block;margin-top:5px;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sm{font-size:13px}.look>.muted.sm{margin:0 0 12px}
 
