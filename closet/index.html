@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#1f1f2e">
+<meta name="theme-color" content="#fafaf8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e0e10" media="(prefers-color-scheme: dark)">
 <title>내 옷장</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg">
@@ -11,68 +12,84 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header><h1>👗 내 옷장</h1><span id="count"></span></header>
+<header class="top">
+  <div>
+    <p class="eyebrow" id="eyebrow">MY CLOSET</p>
+    <h1 id="title">옷장</h1>
+  </div>
+  <span id="count" class="count"></span>
+</header>
 
 <main>
   <section id="tab-closet" class="tab active">
-    <div class="chips" id="filter-cat"></div>
+    <div class="chips scroll" id="filter-cat"></div>
     <div id="grid" class="grid"></div>
-    <p id="empty" class="muted" hidden>아직 등록된 옷이 없어요. 아래 ＋ 버튼으로 사진을 추가해 보세요.</p>
+    <div id="empty" class="empty" hidden>
+      <svg viewBox="0 0 64 64" width="72" height="72" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M32 14a5 5 0 1 1 5 5v4l20 12c3 2 1.6 6-1.6 6H8.6C5.4 41 4 37 7 35l20-12v-4"/><path d="M14 41v9h36v-9"/></svg>
+      <h3>옷장이 비어 있어요</h3>
+      <p>가진 옷을 사진으로 등록하면<br>날씨에 맞는 코디를 추천해 드려요.</p>
+      <button class="primary" id="empty-add">첫 옷 등록하기</button>
+    </div>
   </section>
 
   <section id="tab-outfit" class="tab">
-    <div class="card">
-      <label>오늘 날씨
-        <select id="temp">
-          <option value="hot">더워요 (25°↑)</option>
-          <option value="mild" selected>적당해요 (15~24°)</option>
-          <option value="cool">쌀쌀해요 (5~14°)</option>
-          <option value="cold">추워요 (5°↓)</option>
-        </select>
-      </label>
-      <button id="btn-weather" class="ghost">📍 현재 날씨로 설정</button>
-      <small id="weather-msg" class="muted"></small>
-      <label>분위기
-        <select id="mood">
-          <option value="any">상관없음</option>
-          <option value="neutral">차분하게 (무채색 위주)</option>
-          <option value="color">포인트 컬러</option>
-        </select>
-      </label>
-      <button id="btn-recommend" class="primary">코디 추천받기</button>
+    <div class="panel">
+      <div class="field">
+        <span class="lbl">오늘 날씨</span>
+        <div class="seg" id="temp-seg" role="radiogroup"></div>
+      </div>
+      <div class="field">
+        <span class="lbl">분위기</span>
+        <div class="seg" id="mood-seg" role="radiogroup"></div>
+      </div>
+      <div class="row">
+        <button id="btn-weather" class="ghost small">현재 위치 날씨 가져오기</button>
+        <small id="weather-msg" class="muted"></small>
+      </div>
+      <button id="btn-recommend" class="primary wide">코디 추천받기</button>
     </div>
     <div id="outfit-result"></div>
-    <h3>저장한 코디</h3>
+    <h2 class="section">저장한 코디</h2>
     <div id="saved" class="saved"></div>
   </section>
 </main>
 
-<button id="fab" aria-label="옷 추가">＋</button>
-
-<nav>
-  <button data-tab="closet" class="active">옷장</button>
-  <button data-tab="outfit">코디</button>
+<nav class="dock">
+  <button data-tab="closet" class="active" aria-label="옷장">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5a2 2 0 1 1 2 2v1.2l7 4.2c1.2.7.7 2.5-.7 2.5H3.7c-1.4 0-1.9-1.8-.7-2.5l7-4.2"/></svg>
+    <span>옷장</span>
+  </button>
+  <button id="fab" aria-label="옷 추가">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
+  <button data-tab="outfit" aria-label="코디">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 4 6l1.5 4L8 9v11h8V9l2.5 1L20 6l-5-3c-.5 1.3-1.6 2-3 2s-2.5-.7-3-2Z"/></svg>
+    <span>코디</span>
+  </button>
 </nav>
 
 <dialog id="dlg">
   <form method="dialog" id="form">
-    <h2 id="dlg-title">옷 추가</h2>
-    <img id="preview" alt="" hidden>
-    <label class="file">사진 선택/촬영
+    <div class="sheet-head">
+      <h2 id="dlg-title">옷 추가</h2>
+      <button type="button" id="btn-cancel" class="icon" aria-label="닫기">✕</button>
+    </div>
+    <label class="drop" id="drop">
+      <img id="preview" alt="" hidden>
+      <span id="drop-hint">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg>
+        사진 촬영 / 선택
+      </span>
       <input type="file" id="photo" accept="image/*">
     </label>
-    <label>이름 <input id="f-name" placeholder="예: 흰색 옥스포드 셔츠"></label>
-    <label>종류
-      <select id="f-cat"></select>
-    </label>
-    <label>색상
-      <select id="f-color"></select>
-    </label>
-    <fieldset><legend>입을 수 있는 계절</legend><div id="f-seasons" class="chips"></div></fieldset>
-    <div class="row">
-      <button type="button" id="btn-del" class="danger" hidden>삭제</button>
+    <label class="field"><span class="lbl">이름</span>
+      <input id="f-name" placeholder="예: 흰색 옥스포드 셔츠" autocomplete="off"></label>
+    <div class="field"><span class="lbl">종류</span><div class="chips" id="f-cat"></div></div>
+    <div class="field"><span class="lbl">색상 <b id="color-name"></b></span><div class="swatches" id="f-color"></div></div>
+    <div class="field"><span class="lbl">입는 계절</span><div class="chips" id="f-seasons"></div></div>
+    <div class="row end">
+      <button type="button" id="btn-del" class="danger small" hidden>삭제</button>
       <span class="spacer"></span>
-      <button type="button" id="btn-cancel" class="ghost">취소</button>
       <button type="submit" class="primary">저장</button>
     </div>
   </form>

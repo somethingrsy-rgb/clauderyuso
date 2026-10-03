@@ -21,11 +21,14 @@ const del=(s,id)=>tx(s,'readwrite',o=>o.delete(id));
 
 /* ---------- 상태 ---------- */
 let items=[],outfits=[],filter='전체',editing=null,photoData=null,current=null;
+let selCat=CATS[0],selColor='검정',temp='mild',mood='any';
+const TEMP_LABEL={hot:['더워요','25°↑'],mild:['적당해요','15–24°'],cool:['쌀쌀해요','5–14°'],cold:['추워요','5°↓']};
+const MOOD_LABEL={any:'상관없음',neutral:'차분하게',color:'포인트'};
 
 async function refresh(){
   items=await all('items');outfits=await all('outfits');
   renderCloset();renderSaved();
-  $('#count').textContent=items.length?`${items.length}벌`:'';
+  $('#count').textContent=items.length?`총 ${items.length}벌`:'';
 }
 
 /* ---------- 이미지 리사이즈 (저장 용량 절약) ---------- */
@@ -38,24 +41,26 @@ function resize(file,max=640){return new Promise((res,rej)=>{
 
 /* ---------- 옷장 화면 ---------- */
 function chip(label,on,fn){return el('button',{className:'chip'+(on?' on':''),type:'button',textContent:label,onclick:fn})}
-function dot(c){return el('span',{className:'dot',style:`background:${COLORS[c]||'#ccc'}`})}
+function dot(c){return el('i',{className:'dot',style:`background:${COLORS[c]||'#ccc'}`})}
 function card(it,onclick){
   const b=el('button',{className:'item',type:'button',onclick});
-  b.append(el('img',{src:it.photo,alt:it.name,loading:'lazy'}),
-    el('div',{},el('b',{textContent:it.name||it.cat}),dot(it.color),`${it.color} · ${it.cat}`));
+  b.append(el('span',{className:'ph'},el('img',{src:it.photo,alt:it.name,loading:'lazy'})),
+    el('span',{className:'meta'},el('b',{textContent:it.name||it.cat}),el('small',{},dot(it.color),`${it.color} · ${it.cat}`)));
   return b}
 function renderCloset(){
   const f=$('#filter-cat');f.replaceChildren(...['전체',...CATS].map(c=>chip(c,c===filter,()=>{filter=c;renderCloset()})));
   const list=items.filter(i=>filter==='전체'||i.cat===filter);
   $('#grid').replaceChildren(...list.map(i=>card(i,()=>openDlg(i))));
-  $('#empty').hidden=items.length>0;
+  $('#empty').hidden=items.length>0;$('#filter-cat').hidden=!items.length;
 }
 
 /* ---------- 추가/수정 다이얼로그 ---------- */
-function fillSelects(){
-  $('#f-cat').replaceChildren(...CATS.map(c=>el('option',{value:c,textContent:c})));
-  $('#f-color').replaceChildren(...Object.keys(COLORS).map(c=>el('option',{value:c,textContent:c})));
-}
+function renderCatChips(){
+  $('#f-cat').replaceChildren(...CATS.map(c=>chip(c,c===selCat,()=>{selCat=c;renderCatChips()})));}
+function renderSwatches(){
+  $('#color-name').textContent=selColor;
+  $('#f-color').replaceChildren(...Object.entries(COLORS).map(([n,hex])=>
+    el('button',{type:'button',className:'sw'+(n===selColor?' on':''),style:`background:${hex}`,title:n,'aria-label':n,onclick:()=>{selColor=n;renderSwatches()}})));}
 function renderSeasonChips(sel){
   $('#f-seasons').replaceChildren(...SEASONS.map(s=>chip(s,sel.has(s),e=>{sel.has(s)?sel.delete(s):sel.add(s);e.target.classList.toggle('on')})));
 }
@@ -63,18 +68,18 @@ let seasonSel=new Set();
 function openDlg(it){
   editing=it||null;photoData=it?it.photo:null;
   $('#dlg-title').textContent=it?'옷 수정':'옷 추가';
-  $('#f-name').value=it?.name||'';$('#f-cat').value=it?.cat||CATS[0];$('#f-color').value=it?.color||'검정';
-  $('#photo').value='';$('#preview').hidden=!photoData;$('#preview').src=photoData||'';
+  $('#f-name').value=it?.name||'';selCat=it?.cat||CATS[0];selColor=it?.color||'검정';renderCatChips();renderSwatches();
+  $('#photo').value='';$('#preview').hidden=!photoData;if(photoData)$('#preview').src=photoData;else $('#preview').removeAttribute('src');
   seasonSel=new Set(it?it.seasons:SEASONS);renderSeasonChips(seasonSel);
-  $('#btn-del').hidden=!it;$('#dlg').showModal();
+  $('#btn-del').hidden=!it;$('#dlg').showModal();$('#dlg').scrollTop=0;
 }
-$('#fab').onclick=()=>openDlg();
+$('#fab').onclick=()=>openDlg();$('#empty-add').onclick=()=>openDlg();
 $('#btn-cancel').onclick=()=>$('#dlg').close();
 $('#photo').onchange=async e=>{const f=e.target.files[0];if(!f)return;
   try{photoData=await resize(f);$('#preview').src=photoData;$('#preview').hidden=false}catch(err){alert(err.message)}};
 $('#form').onsubmit=async e=>{
   if(!photoData){e.preventDefault();alert('사진을 선택해 주세요');return}
-  const it={...(editing||{}),name:$('#f-name').value.trim(),cat:$('#f-cat').value,color:$('#f-color').value,
+  const it={...(editing||{}),name:$('#f-name').value.trim(),cat:selCat,color:selColor,
     seasons:[...seasonSel],photo:photoData};
   if(!it.seasons.length)it.seasons=[...SEASONS];
   await put('items',it);await refresh();
@@ -105,7 +110,7 @@ function outfitScore(parts,mood){
   return s+Math.random()*1.5;                    // 매번 다른 결과
 }
 function recommend(){
-  const t=TEMP[$('#temp').value],mood=$('#mood').value;
+  const t=TEMP[temp];
   const ok=c=>items.filter(i=>i.cat===c&&i.seasons.some(s=>t.s.includes(s)));
   const tops=ok('상의'),bottoms=ok('하의'),dresses=ok('원피스'),outers=ok('아우터'),shoes=ok('신발'),accs=ok('액세서리');
   const bases=[];
@@ -126,25 +131,27 @@ function recommend(){
 }
 function showOutfit(parts){
   current=parts;const box=$('#outfit-result');
-  if(!parts){box.replaceChildren(el('p',{className:'muted',textContent:'이 날씨에 맞는 상의+하의(또는 원피스)가 부족해요. 옷을 더 등록하거나 계절 설정을 확인해 보세요.'}));return}
+  if(!parts){box.replaceChildren(el('div',{className:'look'},el('p',{className:'note',textContent:'이 날씨에 맞는 상의+하의(또는 원피스)가 부족해요. 옷을 더 등록하거나 계절 설정을 확인해 보세요.'})));return}
   const miss=[];
-  if(TEMP[$('#temp').value].outer&&!parts.some(p=>p.cat==='아우터'))miss.push('아우터');
+  if(TEMP[temp].outer&&!parts.some(p=>p.cat==='아우터'))miss.push('아우터');
   if(!parts.some(p=>p.cat==='신발'))miss.push('신발');
-  box.replaceChildren(
-    el('div',{className:'outfit'},...parts.map(p=>card(p,()=>{}))),
-    ...(miss.length?[el('p',{className:'muted',textContent:`💡 ${miss.join(', ')}도 등록하면 더 완성된 코디를 추천해 드려요.`})]:[]),
-    el('div',{className:'actions'},
-      el('button',{className:'ghost',textContent:'🔄 다시 추천',onclick:()=>showOutfit(recommend())}),
-      el('button',{className:'primary',textContent:'💾 이 코디 저장',onclick:saveOutfit})));
+  box.replaceChildren(el('div',{className:'look'},
+    el('div',{className:'look-head'},el('h2',{textContent:'오늘의 코디'}),el('small',{className:'muted',textContent:`${TEMP_LABEL[temp][0]} · ${parts.length}피스`})),
+    el('div',{className:'look-grid'},...parts.map(p=>card(p,()=>{}))),
+    ...(miss.length?[el('p',{className:'note',textContent:`${miss.join(', ')}도 등록하면 더 완성된 코디를 추천해 드려요.`})]:[]),
+    el('div',{className:'row'},
+      el('button',{className:'ghost',textContent:'다시 추천',onclick:()=>showOutfit(recommend())}),
+      el('button',{className:'primary',textContent:'이 코디 저장',onclick:saveOutfit}))));
+  box.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
-async function saveOutfit(){if(!current)return;await put('outfits',{ids:current.map(p=>p.id),at:Date.now()});await refresh();alert('저장했어요!')}
+async function saveOutfit(){if(!current)return;await put('outfits',{ids:current.map(p=>p.id),at:Date.now()});await refresh();}
 function renderSaved(){
   const box=$('#saved');
   const rows=outfits.slice().reverse().map(o=>{
     const parts=o.ids.map(id=>items.find(i=>i.id===id)).filter(Boolean);
     return el('div',{className:'mini'},...parts.map(p=>el('img',{src:p.photo,alt:p.name})),
-      el('button',{className:'x',textContent:'✕',title:'삭제',onclick:async()=>{await del('outfits',o.id);await refresh()}}))});
-  box.replaceChildren(...(rows.length?rows:[el('p',{className:'muted',textContent:'저장한 코디가 없어요.',style:'padding:0'})]));
+      el('button',{className:'x',textContent:'✕',title:'삭제','aria-label':'삭제',onclick:async()=>{await del('outfits',o.id);await refresh()}}))});
+  box.replaceChildren(...(rows.length?rows:[el('p',{className:'muted',textContent:'아직 저장한 코디가 없어요.'})]));
 }
 $('#btn-recommend').onclick=()=>showOutfit(recommend());
 
@@ -157,19 +164,31 @@ $('#btn-weather').onclick=()=>{
     try{
       const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${p.coords.latitude}&longitude=${p.coords.longitude}&current=apparent_temperature`);
       const t=(await r.json()).current.apparent_temperature;
-      $('#temp').value=t>=25?'hot':t>=15?'mild':t>=5?'cool':'cold';
+      temp=t>=25?'hot':t>=15?'mild':t>=5?'cool':'cold';renderSegs();
       msg.textContent=`체감온도 ${Math.round(t)}°C 기준으로 설정했어요.`;
     }catch{msg.textContent='날씨를 가져오지 못했어요. 직접 선택해 주세요.'}
   },()=>{msg.textContent='위치 권한이 없어요. 직접 선택해 주세요.'},{timeout:8000});
 };
 
+/* ---------- 분할 버튼 ---------- */
+function seg(id,opts,get,set){
+  $(id).replaceChildren(...opts.map(([v,label,sub])=>el('button',{type:'button',className:get()===v?'on':'',role:'radio','aria-checked':get()===v,
+    onclick:()=>{set(v);renderSegs()}},label,...(sub?[el('br'),el('small',{textContent:sub,style:'opacity:.7;font-weight:400'})]:[]))));
+}
+function renderSegs(){
+  seg('#temp-seg',Object.entries(TEMP_LABEL).map(([k,[l,sub]])=>[k,l,sub]),()=>temp,v=>temp=v);
+  seg('#mood-seg',Object.entries(MOOD_LABEL).map(([k,l])=>[k,l]),()=>mood,v=>mood=v);
+}
+
 /* ---------- 탭 / 시작 ---------- */
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
-  document.querySelectorAll('nav button,.tab').forEach(x=>x.classList.remove('active'));
+const TITLES={closet:['MY CLOSET','옷장'],outfit:['TODAY','코디']};
+document.querySelectorAll('.dock button[data-tab]').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.dock button[data-tab],.tab').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');$('#tab-'+b.dataset.tab).classList.add('active');
-  $('#fab').hidden=b.dataset.tab!=='closet';
+  $('#eyebrow').textContent=TITLES[b.dataset.tab][0];$('#title').textContent=TITLES[b.dataset.tab][1];
+  $('#count').hidden=b.dataset.tab!=='closet';window.scrollTo({top:0});
 });
 (async()=>{
-  fillSelects();db=await open();await refresh();
+  renderSegs();renderCatChips();renderSwatches();db=await open();await refresh();
   if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
