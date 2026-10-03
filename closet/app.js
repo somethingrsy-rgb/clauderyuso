@@ -1,8 +1,8 @@
 'use strict';
 const CATS=['상의','하의','원피스','아우터','신발','액세서리'];
 const SEASONS=['봄','여름','가을','겨울'];
-const COLORS={검정:'#111',흰색:'#fff',회색:'#999',베이지:'#d9c3a0',네이비:'#1f2a56',데님:'#4a6a96',갈색:'#7a5230',빨강:'#d03a3a',주황:'#ee8a2b',노랑:'#f2d33b',초록:'#3f9a5a',파랑:'#2f6fe0',보라:'#7a4fc4',분홍:'#f0a0c0'};
-const NEUTRAL=new Set(['검정','흰색','회색','베이지','네이비','데님','갈색']);
+const COLORS={검정:'#111',흰색:'#fff',아이보리:'#f1ead8',회색:'#999',베이지:'#d9c3a0',갈색:'#7a5230',카키:'#7a7a4a',네이비:'#1f2a56',데님:'#4a6a96',버건디:'#6e2536',빨강:'#d03a3a',주황:'#ee8a2b',머스타드:'#d4a62a',노랑:'#f2d33b',초록:'#3f9a5a',민트:'#a5d6c8',하늘색:'#9ec8ea',파랑:'#2f6fe0',라벤더:'#b9a6dd',보라:'#7a4fc4',분홍:'#f0a0c0'};
+const NEUTRAL=new Set(['검정','흰색','아이보리','회색','베이지','네이비','데님','갈색','카키']);
 // 온도 → 계절 / 아우터 필요 여부
 const TEMP={hot:{s:['여름'],outer:false},mild:{s:['봄','가을'],outer:false},cool:{s:['봄','가을'],outer:true},cold:{s:['겨울'],outer:true}};
 
@@ -11,8 +11,8 @@ const el=(t,p={},...k)=>{const e=Object.assign(document.createElement(t),p);k.fo
 
 /* ---------- IndexedDB ---------- */
 let db;
-const open=()=>new Promise((res,rej)=>{const r=indexedDB.open('closet',1);
-  r.onupgradeneeded=()=>{r.result.createObjectStore('items',{keyPath:'id',autoIncrement:true});r.result.createObjectStore('outfits',{keyPath:'id',autoIncrement:true})};
+const open=()=>new Promise((res,rej)=>{const r=indexedDB.open('closet',2);
+  r.onupgradeneeded=()=>{const d=r.result;for(const s of ['items','outfits','plans'])if(!d.objectStoreNames.contains(s))d.createObjectStore(s,{keyPath:'id',autoIncrement:true})};
   r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
 const tx=(s,m,fn)=>new Promise((res,rej)=>{const t=db.transaction(s,m);const r=fn(t.objectStore(s));t.oncomplete=()=>res(r.result);t.onerror=()=>rej(t.error)});
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2,10));
@@ -61,7 +61,7 @@ async function uploadAll(){
   if(!cloud.user||cloud.uploading)return;
   cloud.uploading=true;renderAcct();
   let ok=0,fail=0;
-  outer:for(const s of ['items','outfits'])for(const v of await all(s)){if(await cloudSet(s,v))ok++;else{fail++;break outer}}
+  outer:for(const s of ['items','outfits','plans'])for(const v of await all(s)){if(await cloudSet(s,v))ok++;else{fail++;break outer}}
   cloud.uploading=false;renderAcct();
   toast(fail?`${ok}개 올리고 멈췄어요. 연결 상태를 확인해 주세요.`:ok?`${ok}개를 클라우드에 올렸어요.`:'올릴 옷이 없어요.',5000);
 }
@@ -95,7 +95,7 @@ function listen(name){
     }catch(e){console.error(e)}
   },e=>{cloud.error=e.code||e.message;toast(e.code==='permission-denied'?'저장 권한이 없어요. Firestore 보안 규칙을 확인해 주세요.':'동기화 오류: '+cloud.error);renderAcct()});
 }
-function startSync(){stopSync();cloud.startedAt=Date.now();cloud.serverSeen=false;cloud.counts={};cloud.unsubs=['items','outfits'].map(listen)}
+function startSync(){stopSync();cloud.startedAt=Date.now();cloud.serverSeen=false;cloud.counts={};cloud.unsubs=['items','outfits','plans'].map(listen)}
 function stopSync(){cloud.unsubs.forEach(u=>u());cloud.unsubs=[];cloud.pending=false;cloud.fromCache=false;cloud.error=''}
 
 async function signIn(){
@@ -167,7 +167,8 @@ const MOOD_LABEL={any:'상관없음',neutral:'차분하게',color:'포인트'};
 
 async function refresh(){
   items=await all('items');outfits=await all('outfits');
-  renderCloset();renderSaved();
+  plans=Object.fromEntries((await all('plans')).map(p=>[p.day,p]));
+  renderCloset();renderWeek();
   $('#count').textContent=items.length?`총 ${items.length}벌`:'';
 }
 
@@ -187,12 +188,23 @@ function card(it,onclick){
   b.append(el('span',{className:'ph'},el('img',{src:it.photo,alt:it.name,loading:'lazy'})),
     el('span',{className:'meta'},el('b',{textContent:it.name||it.cat}),el('small',{},dot(it.color),`${it.color} · ${it.cat}`)));
   return b}
+const born=i=>i.createdAt||i.updatedAt||0;   // 등록한 시각 (예전에 올린 옷은 마지막으로 고친 시각)
 function renderCloset(){
   const f=$('#filter-cat');f.replaceChildren(...['전체',...CATS].map(c=>chip(`${c} ${c==='전체'?items.length:items.filter(i=>i.cat===c).length}`,c===filter,()=>{filter=c;renderCloset()})));
   const q=$('#q').value.trim().toLowerCase(),so=$('#sort').value;
   const list=items.filter(i=>(filter==='전체'||i.cat===filter)&&(!q||[i.name,i.cat,i.color].join(' ').toLowerCase().includes(q)))
-    .sort(so==='name'?(a,b)=>(a.name||a.cat).localeCompare(b.name||b.cat,'ko'):so==='cat'?(a,b)=>CATS.indexOf(a.cat)-CATS.indexOf(b.cat)||b.id-a.id:(a,b)=>b.id-a.id);
-  $('#grid').replaceChildren(...(list.length||!items.length?list.map(i=>card(i,()=>openDlg(i))):[el('p',{className:'none',textContent:'조건에 맞는 옷이 없어요.'})]));
+    .sort(so==='name'?(a,b)=>(a.name||a.cat).localeCompare(b.name||b.cat,'ko'):so==='cat'?(a,b)=>(CATS.indexOf(a.cat)+1||99)-(CATS.indexOf(b.cat)+1||99)||born(b)-born(a):(a,b)=>born(b)-born(a));
+  const open=i=>card(i,()=>openDlg(i));
+  let nodes;
+  if(!list.length&&items.length)nodes=[el('p',{className:'none',textContent:'조건에 맞는 옷이 없어요.'})];
+  else if(filter==='전체'&&so==='cat'){          // 전체 + 종류순: 상의 → 하의 → 원피스 → 아우터 → 신발 → 액세서리 묶음으로 나열
+    nodes=[];
+    for(const c of [...CATS,'기타']){
+      const g=c==='기타'?list.filter(i=>!CATS.includes(i.cat)):list.filter(i=>i.cat===c);
+      if(g.length)nodes.push(el('h3',{className:'grp'},c,el('small',{textContent:`${g.length}벌`})),...g.map(open));
+    }
+  }else nodes=list.map(open);
+  $('#grid').replaceChildren(...nodes);
   $('#empty').hidden=items.length>0;$('#filter-cat').hidden=!items.length;
 }
 
@@ -255,7 +267,7 @@ $('#photo').onchange=async e=>{const f=e.target.files[0];if(!f)return;
   try{photoData=await resize(f);$('#preview').src=photoData;$('#preview').hidden=false;await setupCut(photoData)}catch(err){alert(err.message)}};
 $('#form').onsubmit=async e=>{
   if(!photoData){e.preventDefault();alert('사진을 선택해 주세요');return}
-  const it={...(editing||{}),name:$('#f-name').value.trim(),cat:selCat,color:selColor,
+  const it={...(editing||{createdAt:Date.now()}),name:$('#f-name').value.trim(),cat:selCat,color:selColor,
     seasons:[...seasonSel],photo:BgCut.dirty?BgCut.encode():photoData};
   if(!it.seasons.length)it.seasons=[...SEASONS];
   await put('items',it);await refresh();
@@ -263,30 +275,50 @@ $('#form').onsubmit=async e=>{
 $('#btn-del').onclick=async()=>{
   if(!editing||!confirm('이 옷을 삭제할까요?'))return;
   await del('items',editing.id);
-  for(const o of outfits)if(o.ids.includes(editing.id))await del('outfits',o.id);
+  await scrubItem(editing.id);
   $('#dlg').close();await refresh();
 };
 
 /* ---------- 코디 추천 ---------- */
 const pick=a=>a[Math.floor(Math.random()*a.length)];
+// 색마다 계절별 어울림 점수 (봄, 여름, 가을, 겨울 순서, -2 ~ +2)
+const COLOR_SEASON={검정:[0,0,1,1],흰색:[1,2,0,1],아이보리:[2,1,1,1],회색:[0,0,1,1],베이지:[2,0,2,0],갈색:[0,-1,2,1],카키:[1,0,2,0],네이비:[0,1,2,2],데님:[1,1,1,0],
+  버건디:[-1,-2,2,2],빨강:[0,0,1,1],주황:[0,0,2,-1],머스타드:[0,-1,2,0],노랑:[1,1,0,-1],초록:[1,1,1,1],민트:[2,2,-2,-2],하늘색:[2,2,-1,-1],파랑:[0,1,0,0],라벤더:[2,1,-1,-1],보라:[0,0,1,1],분홍:[2,1,-1,0]};
+// 무채색이 아니어도 잘 어울리는 색 조합
+const HARMONY=[['버건디','네이비'],['머스타드','네이비'],['카키','버건디'],['카키','머스타드'],['버건디','머스타드'],['민트','분홍'],['하늘색','분홍'],['라벤더','하늘색'],['민트','하늘색']];
+function currentSeason(d=new Date()){const m=d.getMonth()+1;return m>=3&&m<=5?'봄':m>=6&&m<=8?'여름':m>=9&&m<=11?'가을':'겨울'}
+// 날씨 + 오늘 날짜로 어느 계절 옷차림인지 정함 (선선한 날은 지금이 봄이면 봄, 가을이면 가을)
+function targetSeason(tk,d=new Date()){
+  if(tk==='hot')return'여름';if(tk==='cold')return'겨울';
+  const c=currentSeason(d);return c==='봄'||c==='가을'?c:(d.getMonth()<6?'봄':'가을');
+}
 // 두 색 궁합 점수
 function pairScore(a,b){
   if(a===b)return NEUTRAL.has(a)?2:1;            // 톤온톤
   const na=NEUTRAL.has(a),nb=NEUTRAL.has(b);
   if(na&&nb)return (a==='검정'&&b==='네이비')||(a==='네이비'&&b==='검정')||(a==='갈색'&&b==='검정')||(a==='검정'&&b==='갈색')?-1:2;
   if(na||nb)return 2;                            // 무채색 + 컬러
-  return -2;                                     // 컬러 + 다른 컬러는 피함
+  return HARMONY.some(([x,y])=>(x===a&&y===b)||(x===b&&y===a))?1.5:-2;   // 컬러끼리는 어울리는 조합만 허용
 }
-function outfitScore(parts,mood){
+function outfitScore(parts,mood,season){
   const cs=parts.map(p=>p.color);let s=0;
   for(let i=0;i<cs.length;i++)for(let j=i+1;j<cs.length;j++)s+=pairScore(cs[i],cs[j]);
   const colorful=new Set(cs.filter(c=>!NEUTRAL.has(c))).size;
   if(mood==='neutral')s+=colorful?-3:3;
   if(mood==='color')s+=colorful===1?3:-2;
+  if(season){
+    const si=SEASONS.indexOf(season);
+    for(const p of parts){
+      const w=(p.cat==='신발'||p.cat==='액세서리')?.3:1,cs2=(COLOR_SEASON[p.color]||[0,0,0,0])[si];
+      s+=cs2*.9*w;                                 // 그 계절에 어울리는 색은 가점, 안 어울리면 감점
+      if(cs2<=-2&&w===1)s-=2;                      // 계절과 정반대인 색(가을의 민트 등)은 더 감점
+      if(p.seasons&&p.seasons.includes(season))s+=.6*w;   // 그 계절용으로 등록한 옷 우대
+    }
+  }
   return s+Math.random()*1.5;                    // 매번 다른 결과
 }
 function recommend(tk=temp,opt={}){
-  const t=TEMP[tk],usage=opt.usage||{},near=opt.near||new Set();
+  const t=TEMP[tk],usage=opt.usage||{},near=opt.near||new Set(),season=targetSeason(tk);
   const ok=c=>items.filter(i=>i.cat===c&&i.seasons.some(s=>t.s.includes(s)));
   const tops=ok('상의'),bottoms=ok('하의'),dresses=ok('원피스'),outers=ok('아우터'),shoes=ok('신발'),accs=ok('액세서리');
   const bases=[];
@@ -302,84 +334,11 @@ function recommend(tk=temp,opt={}){
     else if(!t.outer&&outers.length&&Math.random()<.25)parts.push(pick(outers));
     if(shoes.length)parts.push(pick(shoes));
     if(accs.length&&Math.random()<.4)parts.push(pick(accs));
-    const s=outfitScore(parts,mood)-repeat(parts);
+    const s=outfitScore(parts,mood,season)-repeat(parts);
     if(s>bs){bs=s;best=parts}
   }
   return best;
 }
-function showOutfit(parts){
-  current=parts;const box=$('#outfit-result');
-  if(!parts){box.replaceChildren(el('div',{className:'look'},el('p',{className:'note',textContent:'이 날씨에 맞는 상의+하의(또는 원피스)가 부족해요. 옷을 더 등록하거나 계절 설정을 확인해 보세요.'})));return}
-  const miss=[];
-  if(TEMP[temp].outer&&!parts.some(p=>p.cat==='아우터'))miss.push('아우터');
-  if(!parts.some(p=>p.cat==='신발'))miss.push('신발');
-  box.replaceChildren(el('div',{className:'look'},
-    el('div',{className:'look-head'},el('h2',{textContent:'오늘의 코디'}),el('small',{className:'muted',textContent:`${TEMP_LABEL[temp][0]} · ${parts.length}피스`})),
-    el('div',{className:'look-grid'},...parts.map(p=>card(p,()=>{}))),
-    ...(miss.length?[el('p',{className:'note',textContent:`${miss.join(', ')}도 등록하면 더 완성된 코디를 추천해 드려요.`})]:[]),
-    el('div',{className:'row'},
-      el('button',{className:'ghost',textContent:'다시 추천',onclick:()=>showOutfit(recommend())}),
-      el('button',{className:'primary',textContent:'이 코디 저장',onclick:saveOutfit}))));
-  box.scrollIntoView({behavior:'smooth',block:'nearest'});
-}
-async function saveOutfit(){if(!current)return;await put('outfits',{ids:current.map(p=>p.id),at:Date.now()});await refresh();}
-function renderSaved(){
-  const box=$('#saved');
-  const rows=outfits.slice().reverse().map(o=>{
-    const parts=o.ids.map(id=>items.find(i=>i.id===id)).filter(Boolean);
-    return el('div',{className:'mini'},...parts.map(p=>el('img',{src:p.photo,alt:p.name})),
-      el('button',{className:'x',textContent:'✕',title:'삭제','aria-label':'삭제',onclick:async()=>{await del('outfits',o.id);await refresh()}}))});
-  box.replaceChildren(...(rows.length?rows:[el('p',{className:'muted',textContent:'아직 저장한 코디가 없어요.'})]));
-}
-/* ---------- 일주일 코디 ---------- */
-const DOW=['일','월','화','수','목','금','토'];
-let week=[];
-function dayLabel(i){const d=new Date();d.setDate(d.getDate()+i);return {text:`${d.getMonth()+1}/${d.getDate()} (${DOW[d.getDay()]})`,today:i===0}}
-function weekUsage(skip){const u={};week.forEach((w,i)=>{if(i!==skip&&w.parts)w.parts.forEach(p=>u[p.id]=(u[p.id]||0)+1)});return u}
-function genDay(i){
-  const near=new Set();[i-1,i+1].forEach(j=>week[j]?.parts?.forEach(p=>near.add(p.id)));
-  week[i].parts=recommend(week[i].temp,{usage:weekUsage(i),near});
-}
-function makeWeek(){
-  week=Array.from({length:7},()=>({temp,parts:null}));week.forEach((_,i)=>genDay(i));
-  $('#outfit-result').replaceChildren();showWeek();
-}
-function dayCard(w,i){
-  const L=dayLabel(i);
-  const sel=el('select',{'aria-label':L.text+' 날씨'},...Object.entries(TEMP_LABEL).map(([k,[l,sub]])=>el('option',{value:k,textContent:`${l} ${sub}`,selected:k===w.temp})));
-  sel.onchange=()=>{w.temp=sel.value;genDay(i);showWeek()};
-  const head=el('div',{className:'day-head'},...(L.today?[el('span',{className:'today',textContent:'오늘'})]:[]),el('b',{textContent:L.text}),sel,
-    el('button',{className:'mini-btn',type:'button',textContent:'다시',onclick:()=>{genDay(i);showWeek()}}));
-  const body=w.parts?el('div',{className:'strip'},...w.parts.map(p=>el('div',{className:'piece'},el('img',{src:p.photo,alt:p.name}),el('small',{textContent:(p.name||p.cat).replace(' (예시)','')}))))
-    :el('p',{className:'muted sm',textContent:'이 날씨에 맞는 상의+하의(또는 원피스)가 부족해요.'});
-  return el('div',{className:'day'},head,body);
-}
-function showWeek(){
-  const cnt={};week.forEach(w=>w.parts?.forEach(p=>cnt[p.id]=(cnt[p.id]||0)+1));
-  const kinds=Object.keys(cnt).length,rep=Math.max(0,...Object.values(cnt));
-  $('#week-result').replaceChildren(el('div',{className:'look'},
-    el('div',{className:'look-head'},el('h2',{textContent:'일주일 코디'}),el('small',{className:'muted',textContent:kinds?`옷 ${kinds}벌 · 최대 ${rep}번 반복`:''})),
-    el('p',{className:'muted sm',textContent:'요일마다 날씨를 바꾸면 그날 코디만 다시 만들어요.'}),
-    el('div',{className:'week'},...week.map(dayCard)),
-    el('div',{className:'row'},el('button',{className:'primary',textContent:'일주일 다시 만들기',onclick:makeWeek}))));
-}
-$('#btn-week').onclick=makeWeek;
-$('#btn-recommend').onclick=()=>{$('#week-result').replaceChildren();showOutfit(recommend())};
-
-/* ---------- 현재 날씨 (Open-Meteo, 키 불필요) ---------- */
-$('#btn-weather').onclick=()=>{
-  const msg=$('#weather-msg');
-  if(!navigator.geolocation){msg.textContent='위치 기능을 쓸 수 없어요.';return}
-  msg.textContent='날씨 확인 중…';
-  navigator.geolocation.getCurrentPosition(async p=>{
-    try{
-      const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${p.coords.latitude}&longitude=${p.coords.longitude}&current=apparent_temperature`);
-      const t=(await r.json()).current.apparent_temperature;
-      temp=t>=25?'hot':t>=15?'mild':t>=5?'cool':'cold';renderSegs();
-      msg.textContent=`체감온도 ${Math.round(t)}°C 기준으로 설정했어요.`;
-    }catch{msg.textContent='날씨를 가져오지 못했어요. 직접 선택해 주세요.'}
-  },()=>{msg.textContent='위치 권한이 없어요. 직접 선택해 주세요.'},{timeout:8000});
-};
 
 /* ---------- 분할 버튼 ---------- */
 function seg(id,opts,get,set){
@@ -387,19 +346,18 @@ function seg(id,opts,get,set){
     onclick:()=>{set(v);renderSegs()}},label,...(sub?[el('br'),el('small',{textContent:sub,style:'opacity:.7;font-weight:400'})]:[]))));
 }
 function renderSegs(){
-  seg('#temp-seg',Object.entries(TEMP_LABEL).map(([k,[l,sub]])=>[k,l,sub]),()=>temp,v=>temp=v);
   seg('#mood-seg',Object.entries(MOOD_LABEL).map(([k,l])=>[k,l]),()=>mood,v=>mood=v);
 }
 
 /* ---------- 탭 / 시작 ---------- */
-const TITLES={closet:['MY CLOSET','옷장'],outfit:['TODAY','코디']};
+const TITLES={closet:['MY CLOSET','옷장'],week:['THIS WEEK','코디']};
 document.querySelectorAll('.dock button[data-tab]').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.dock button[data-tab],.tab').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');$('#tab-'+b.dataset.tab).classList.add('active');
   $('#eyebrow').textContent=TITLES[b.dataset.tab][0];$('#title').textContent=TITLES[b.dataset.tab][1];
-  $('#count').hidden=b.dataset.tab!=='closet';window.scrollTo({top:0});
+  $('#count').hidden=b.dataset.tab!=='closet';$('#fab').hidden=b.dataset.tab!=='closet';window.scrollTo({top:0});
 });
 (async()=>{
-  renderSegs();renderCatChips();renderSwatches();db=await open();await migrateIds();await refresh();initCloud();
+  renderSegs();renderCatChips();renderSwatches();db=await open();await migrateIds();initPlanner();await refresh();initCloud();
   if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
