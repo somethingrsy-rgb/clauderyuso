@@ -405,7 +405,7 @@ const TITLES={closet:['MY CLOSET','옷장'],combo:['OUTFITS','코디'],week:['TH
 document.querySelectorAll('.dock button[data-tab]').forEach(b=>b.onclick=()=>{
   if(selMode)setSel(false);
   document.querySelectorAll('.dock button[data-tab],.tab').forEach(x=>x.classList.remove('active'));
-  b.classList.add('active');$('#tab-'+b.dataset.tab).classList.add('active');
+  b.classList.add('active');$('#tab-'+b.dataset.tab).classList.add('active');if(b.dataset.tab==='week')goToday(todayPos,false);
   $('#eyebrow').textContent=TITLES[b.dataset.tab][0];$('#title').textContent=TITLES[b.dataset.tab][1];
   $('#count').hidden=$('#btn-sel').hidden=b.dataset.tab!=='closet';$('#fab').hidden=b.dataset.tab!=='closet';window.scrollTo({top:0});
 });
