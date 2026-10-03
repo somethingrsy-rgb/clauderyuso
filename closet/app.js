@@ -185,7 +185,7 @@ function dot(c){return el('i',{className:'dot',style:`background:${COLORS[c]||'#
 function card(it,onclick){
   const b=el('button',{className:'item',type:'button',onclick});
   b.append(el('span',{className:'ph'},el('img',{src:it.photo,alt:it.name,loading:'lazy'})),
-    el('span',{className:'meta'},el('small',{className:'kicker',textContent:it.cat}),el('b',{textContent:it.name||it.cat}),el('small',{className:'tone'},dot(it.color),it.color)));
+    el('span',{className:'meta'},el('b',{textContent:it.name||it.cat}),el('small',{},dot(it.color),`${it.color} · ${it.cat}`)));
   return b}
 function renderCloset(){
   const f=$('#filter-cat');f.replaceChildren(...['전체',...CATS].map(c=>chip(`${c} ${c==='전체'?items.length:items.filter(i=>i.cat===c).length}`,c===filter,()=>{filter=c;renderCloset()})));
