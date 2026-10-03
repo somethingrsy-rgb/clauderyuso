@@ -11,8 +11,8 @@ const el=(t,p={},...k)=>{const e=Object.assign(document.createElement(t),p);k.fo
 
 /* ---------- IndexedDB ---------- */
 let db;
-const open=()=>new Promise((res,rej)=>{const r=indexedDB.open('closet',1);
-  r.onupgradeneeded=()=>{r.result.createObjectStore('items',{keyPath:'id',autoIncrement:true});r.result.createObjectStore('outfits',{keyPath:'id',autoIncrement:true})};
+const open=()=>new Promise((res,rej)=>{const r=indexedDB.open('closet',2);
+  r.onupgradeneeded=()=>{const d=r.result;for(const s of ['items','outfits','plans'])if(!d.objectStoreNames.contains(s))d.createObjectStore(s,{keyPath:'id',autoIncrement:true})};
   r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
 const tx=(s,m,fn)=>new Promise((res,rej)=>{const t=db.transaction(s,m);const r=fn(t.objectStore(s));t.oncomplete=()=>res(r.result);t.onerror=()=>rej(t.error)});
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2,10));
@@ -61,7 +61,7 @@ async function uploadAll(){
   if(!cloud.user||cloud.uploading)return;
   cloud.uploading=true;renderAcct();
   let ok=0,fail=0;
-  outer:for(const s of ['items','outfits'])for(const v of await all(s)){if(await cloudSet(s,v))ok++;else{fail++;break outer}}
+  outer:for(const s of ['items','outfits','plans'])for(const v of await all(s)){if(await cloudSet(s,v))ok++;else{fail++;break outer}}
   cloud.uploading=false;renderAcct();
   toast(fail?`${ok}개 올리고 멈췄어요. 연결 상태를 확인해 주세요.`:ok?`${ok}개를 클라우드에 올렸어요.`:'올릴 옷이 없어요.',5000);
 }
@@ -95,7 +95,7 @@ function listen(name){
     }catch(e){console.error(e)}
   },e=>{cloud.error=e.code||e.message;toast(e.code==='permission-denied'?'저장 권한이 없어요. Firestore 보안 규칙을 확인해 주세요.':'동기화 오류: '+cloud.error);renderAcct()});
 }
-function startSync(){stopSync();cloud.startedAt=Date.now();cloud.serverSeen=false;cloud.counts={};cloud.unsubs=['items','outfits'].map(listen)}
+function startSync(){stopSync();cloud.startedAt=Date.now();cloud.serverSeen=false;cloud.counts={};cloud.unsubs=['items','outfits','plans'].map(listen)}
 function stopSync(){cloud.unsubs.forEach(u=>u());cloud.unsubs=[];cloud.pending=false;cloud.fromCache=false;cloud.error=''}
 
 async function signIn(){
@@ -167,7 +167,8 @@ const MOOD_LABEL={any:'상관없음',neutral:'차분하게',color:'포인트'};
 
 async function refresh(){
   items=await all('items');outfits=await all('outfits');
-  renderCloset();renderSaved();
+  plans=Object.fromEntries((await all('plans')).map(p=>[p.day,p]));
+  renderCloset();renderWeek();
   $('#count').textContent=items.length?`총 ${items.length}벌`:'';
 }
 
@@ -263,7 +264,7 @@ $('#form').onsubmit=async e=>{
 $('#btn-del').onclick=async()=>{
   if(!editing||!confirm('이 옷을 삭제할까요?'))return;
   await del('items',editing.id);
-  for(const o of outfits)if(o.ids.includes(editing.id))await del('outfits',o.id);
+  await scrubItem(editing.id);
   $('#dlg').close();await refresh();
 };
 
@@ -339,52 +340,16 @@ function showOutfit(parts){
     ...(miss.length?[el('p',{className:'note',textContent:`${miss.join(', ')}도 등록하면 더 완성된 코디를 추천해 드려요.`})]:[]),
     el('div',{className:'row'},
       el('button',{className:'ghost',textContent:'다시 추천',onclick:()=>showOutfit(recommend())}),
-      el('button',{className:'primary',textContent:'이 코디 저장',onclick:saveOutfit}))));
+      el('button',{className:'primary',textContent:'자주 입는 조합으로 등록',onclick:saveOutfit}))));
   box.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
-async function saveOutfit(){if(!current)return;await put('outfits',{ids:current.map(p=>p.id),at:Date.now()});await refresh();}
-function renderSaved(){
-  const box=$('#saved');
-  const rows=outfits.slice().reverse().map(o=>{
-    const parts=o.ids.map(id=>items.find(i=>i.id===id)).filter(Boolean);
-    return el('div',{className:'mini'},...parts.map(p=>el('img',{src:p.photo,alt:p.name})),
-      el('button',{className:'x',textContent:'✕',title:'삭제','aria-label':'삭제',onclick:async()=>{await del('outfits',o.id);await refresh()}}))});
-  box.replaceChildren(...(rows.length?rows:[el('p',{className:'muted',textContent:'아직 저장한 코디가 없어요.'})]));
+async function saveOutfit(){
+  if(!current)return;
+  const name=`조합 ${outfits.length+1}`;
+  await put('outfits',{ids:current.map(p=>p.id),name,at:Date.now(),uses:0});
+  await refresh();toast(`"${name}"으로 등록했어요. 주간 탭에서 요일에 넣을 수 있어요.`,4000);
 }
-/* ---------- 일주일 코디 ---------- */
-const DOW=['일','월','화','수','목','금','토'];
-let week=[];
-function dayLabel(i){const d=new Date();d.setDate(d.getDate()+i);return {text:`${d.getMonth()+1}/${d.getDate()} (${DOW[d.getDay()]})`,today:i===0}}
-function weekUsage(skip){const u={};week.forEach((w,i)=>{if(i!==skip&&w.parts)w.parts.forEach(p=>u[p.id]=(u[p.id]||0)+1)});return u}
-function genDay(i){
-  const near=new Set();[i-1,i+1].forEach(j=>week[j]?.parts?.forEach(p=>near.add(p.id)));
-  week[i].parts=recommend(week[i].temp,{usage:weekUsage(i),near});
-}
-function makeWeek(){
-  week=Array.from({length:7},()=>({temp,parts:null}));week.forEach((_,i)=>genDay(i));
-  $('#outfit-result').replaceChildren();showWeek();
-}
-function dayCard(w,i){
-  const L=dayLabel(i);
-  const sel=el('select',{'aria-label':L.text+' 날씨'},...Object.entries(TEMP_LABEL).map(([k,[l,sub]])=>el('option',{value:k,textContent:`${l} ${sub}`,selected:k===w.temp})));
-  sel.onchange=()=>{w.temp=sel.value;genDay(i);showWeek()};
-  const head=el('div',{className:'day-head'},...(L.today?[el('span',{className:'today',textContent:'오늘'})]:[]),el('b',{textContent:L.text}),sel,
-    el('button',{className:'mini-btn',type:'button',textContent:'다시',onclick:()=>{genDay(i);showWeek()}}));
-  const body=w.parts?el('div',{className:'strip'},...w.parts.map(p=>el('div',{className:'piece'},el('img',{src:p.photo,alt:p.name}),el('small',{textContent:(p.name||p.cat).replace(' (예시)','')}))))
-    :el('p',{className:'muted sm',textContent:'이 날씨에 맞는 상의+하의(또는 원피스)가 부족해요.'});
-  return el('div',{className:'day'},head,body);
-}
-function showWeek(){
-  const cnt={};week.forEach(w=>w.parts?.forEach(p=>cnt[p.id]=(cnt[p.id]||0)+1));
-  const kinds=Object.keys(cnt).length,rep=Math.max(0,...Object.values(cnt));
-  $('#week-result').replaceChildren(el('div',{className:'look'},
-    el('div',{className:'look-head'},el('h2',{textContent:'일주일 코디'}),el('small',{className:'muted',textContent:kinds?`옷 ${kinds}벌 · 최대 ${rep}번 반복`:''})),
-    el('p',{className:'muted sm',textContent:'요일마다 날씨를 바꾸면 그날 코디만 다시 만들어요.'}),
-    el('div',{className:'week'},...week.map(dayCard)),
-    el('div',{className:'row'},el('button',{className:'primary',textContent:'일주일 다시 만들기',onclick:makeWeek}))));
-}
-$('#btn-week').onclick=makeWeek;
-$('#btn-recommend').onclick=()=>{$('#week-result').replaceChildren();showOutfit(recommend())};
+$('#btn-recommend').onclick=()=>showOutfit(recommend());
 
 /* ---------- 현재 날씨 (Open-Meteo, 키 불필요) ---------- */
 $('#btn-weather').onclick=()=>{
@@ -412,14 +377,14 @@ function renderSegs(){
 }
 
 /* ---------- 탭 / 시작 ---------- */
-const TITLES={closet:['MY CLOSET','옷장'],outfit:['TODAY','코디']};
+const TITLES={closet:['MY CLOSET','옷장'],outfit:['TODAY','코디'],week:['THIS WEEK','주간']};
 document.querySelectorAll('.dock button[data-tab]').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.dock button[data-tab],.tab').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');$('#tab-'+b.dataset.tab).classList.add('active');
   $('#eyebrow').textContent=TITLES[b.dataset.tab][0];$('#title').textContent=TITLES[b.dataset.tab][1];
-  $('#count').hidden=b.dataset.tab!=='closet';window.scrollTo({top:0});
+  $('#count').hidden=b.dataset.tab!=='closet';$('#fab').hidden=b.dataset.tab!=='closet';window.scrollTo({top:0});
 });
 (async()=>{
-  renderSegs();renderCatChips();renderSwatches();db=await open();await migrateIds();await refresh();initCloud();
+  renderSegs();renderCatChips();renderSwatches();db=await open();await migrateIds();initPlanner();await refresh();initCloud();
   if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
