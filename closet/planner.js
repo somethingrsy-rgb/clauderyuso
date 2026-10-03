@@ -58,10 +58,30 @@ function cutout(im){
     bg=ch.map(a=>a.sort((p,q)=>p-q)[a.length>>1]);
     if(Math.min(...bg)<200)bg=null;                         // 배경이 밝지 않으면 손대지 않음
   }
+  if(bg)for(let i=0;i<w*h*4;i+=4){const e=Math.abs(d[i]-bg[0])+Math.abs(d[i+1]-bg[1])+Math.abs(d[i+2]-bg[2]);d[i+3]=e<24?0:e>60?d[i+3]:d[i+3]*(e-24)/36}
+  // 옷 덩어리에서 떨어진 작은 점(사진 구석의 워터마크, 먼지)은 지움. 옷 안쪽의 무늬·단추는 남김
+  const lab=new Int32Array(w*h),q=new Int32Array(w*h),comp=[null];
+  for(let s=0;s<w*h;s++){
+    if(lab[s]||d[s*4+3]<=40)continue;
+    const id=comp.length,c={size:0,x0:w,x1:-1,y0:h,y1:-1};comp.push(c);
+    let head=0,tail=0;q[tail++]=s;lab[s]=id;
+    while(head<tail){
+      const p=q[head++],x=p%w,y=(p/w)|0;
+      if(x<c.x0)c.x0=x;if(x>c.x1)c.x1=x;if(y<c.y0)c.y0=y;if(y>c.y1)c.y1=y;
+      if(x>0&&!lab[p-1]&&d[(p-1)*4+3]>40){lab[p-1]=id;q[tail++]=p-1}
+      if(x<w-1&&!lab[p+1]&&d[(p+1)*4+3]>40){lab[p+1]=id;q[tail++]=p+1}
+      if(y>0&&!lab[p-w]&&d[(p-w)*4+3]>40){lab[p-w]=id;q[tail++]=p-w}
+      if(y<h-1&&!lab[p+w]&&d[(p+w)*4+3]>40){lab[p+w]=id;q[tail++]=p+w}
+    }
+    c.size=tail;
+  }
+  const main=comp.reduce((a,c)=>c&&(!a||c.size>a.size)?c:a,null);
+  if(!main)return{c,x:0,y:0,w,h};
+  const keep=comp.map(c=>c&&(c===main||c.size>=main.size*.08||(c.x0>=main.x0&&c.x1<=main.x1&&c.y0>=main.y0&&c.y1<=main.y1)));
   const rows=new Uint32Array(h),cols=new Uint32Array(w);
-  for(let y=0,i=0;y<h;y++)for(let x=0;x<w;x++,i+=4){
-    if(bg){const e=Math.abs(d[i]-bg[0])+Math.abs(d[i+1]-bg[1])+Math.abs(d[i+2]-bg[2]);d[i+3]=e<24?0:e>60?d[i+3]:d[i+3]*(e-24)/36}
-    if(d[i+3]>40){rows[y]++;cols[x]++}
+  for(let i=0;i<w*h;i++){
+    if(!lab[i])continue;
+    if(keep[lab[i]]){rows[(i/w)|0]++;cols[i%w]++}else d[i*4+3]=0;
   }
   g.putImageData(px,0,0);
   const tr=Math.max(2,w*.004),tc=Math.max(2,h*.004);       // 먼지 같은 점은 무시
