@@ -1,6 +1,6 @@
 :root{
   --photo:#fff;   /* 옷 사진이 놓이는 바탕은 어두운 모드에서도 흰색 */
-  --bg:#fafaf8;--surface:#fff;--sunk:#f0efeb;--fg:#111113;--muted:#8b8b86;--line:#e8e7e2;
+  --bg:#ffffff;--surface:#fff;--sunk:#f0efeb;--fg:#111113;--muted:#8b8b86;--line:#e8e7e2;
   --accent:#111113;--on-accent:#fff;--danger:#d6422f;--shadow:0 10px 30px -10px #0002;
   --r:18px;
 }
@@ -18,9 +18,9 @@ main{max-width:1040px;margin:0 auto}
 #tab-outfit{max-width:760px;margin-inline:auto}
 
 /* header */
-.top{max-width:1040px;margin:0 auto;padding:calc(22px + env(safe-area-inset-top)) 22px 6px;display:flex;align-items:flex-end;justify-content:space-between}
+.top{max-width:1040px;margin:0 auto;padding:calc(26px + env(safe-area-inset-top)) 22px 14px;display:flex;align-items:flex-end;justify-content:space-between}
 .eyebrow{margin:0;font-size:11px;font-weight:700;letter-spacing:.18em;color:var(--muted)}
-h1{margin:2px 0 0;font-size:34px;font-weight:800;letter-spacing:-.03em;line-height:1.1}
+h1{margin:4px 0 0;font-size:42px;font-weight:800;letter-spacing:-.045em;line-height:1.02}
 .count{font-size:14px;color:var(--muted);padding-bottom:6px}
 .section{margin:30px 22px 12px;font-size:18px;font-weight:700;letter-spacing:-.02em}
 .muted{color:var(--muted)}
@@ -33,28 +33,36 @@ h1{margin:2px 0 0;font-size:34px;font-weight:800;letter-spacing:-.03em;line-heig
 .chips.scroll::-webkit-scrollbar{display:none}
 .chip{flex:none;border:0;background:var(--sunk);color:var(--fg);border-radius:999px;padding:8px 15px;font-size:14px;font-weight:500;transition:.15s}
 .chip.on{background:var(--accent);color:var(--on-accent)}
+/* 옷장 목록의 종류 필터: 알약 대신 밑줄 탭 */
+.chips.scroll{gap:22px;padding:0 22px;border-bottom:1px solid var(--line)}
+.chips.scroll .chip{background:none;border-radius:0;padding:12px 0 11px;margin-bottom:-1px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent}
+.chips.scroll .chip.on{background:none;color:var(--fg);font-weight:700;border-bottom-color:var(--fg)}
 
 /* grid */
-.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:22px 14px;padding:4px 22px}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:32px 16px;padding:22px 22px 8px}
 @media(min-width:560px){.grid{grid-template-columns:repeat(3,1fr)}}
 @media(min-width:860px){.grid{grid-template-columns:repeat(4,1fr)}}
 .item{border:0;background:none;padding:0;text-align:left;display:block;width:100%;min-width:0}
-.item .ph{display:block;aspect-ratio:3/4;border-radius:var(--r);overflow:hidden;background:var(--photo);position:relative}
+.item .ph{display:block;aspect-ratio:3/4;border-radius:4px;overflow:hidden;background:var(--photo);position:relative}
 .item .ph::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1px var(--line);pointer-events:none}   /* 테두리는 사진 위에 얹음 */
 .item img{width:100%;height:100%;object-fit:contain;display:block;transition:transform .35s}   /* 긴 옷도 잘리지 않게 전체를 보여줌 */
 .item:active img{transform:scale(1.03)}
 .item:focus-visible{outline:2px solid var(--fg);outline-offset:3px;border-radius:var(--r)}
 @media (hover:hover){.item .ph{transition:box-shadow .25s,transform .25s}.item:hover .ph{box-shadow:var(--shadow);transform:translateY(-2px)}.item:hover img{transform:scale(1.04)}}
-.item .meta{display:block;padding:9px 2px 0}
-.item b{display:block;font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .meta{display:block;padding:12px 0 0}
+.item b{display:block;font-size:15px;font-weight:600;letter-spacing:-.015em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .item small{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12.5px;margin-top:1px}
+.item .kicker{display:block;margin:0 0 3px;font-size:11.5px;font-weight:600;letter-spacing:.08em;color:var(--muted)}
+.item .tone{margin-top:3px}
 .dot{width:10px;height:10px;border-radius:50%;box-shadow:inset 0 0 0 1px #0002;flex:none}
 
 /* search / sort */
-.tools{display:flex;gap:10px;padding:0 22px 14px}
+.tools{display:flex;gap:18px;padding:16px 22px 0}
 .tools .s{flex:1;min-width:0;position:relative}
-.tools .s svg{position:absolute;left:15px;top:50%;translate:0 -50%;width:18px;height:18px;color:var(--muted)}
-.tools .s input{padding-left:42px}
+.tools .s svg{position:absolute;left:2px;top:50%;translate:0 -50%;width:18px;height:18px;color:var(--muted)}
+.tools .s input{padding:10px 4px 10px 28px;background:none;border-radius:0;border-bottom:1px solid var(--line)}
+.tools .s input:focus{border-bottom-color:var(--fg);outline-color:transparent}
+.tools select{background:none;border-radius:0;border-bottom:1px solid var(--line);padding:10px 4px;font-size:14px}
 select{font:inherit;border:0;border-radius:14px;background:var(--sunk);color:var(--fg);padding:14px 12px;outline:2px solid transparent}
 select:focus-visible{outline-color:var(--accent)}
 .none{grid-column:1/-1;text-align:center;color:var(--muted);padding:40px 0}
