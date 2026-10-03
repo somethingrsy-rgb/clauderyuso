@@ -14,14 +14,14 @@
 <body>
 <header class="top">
   <div>
-    <p class="eyebrow" id="eyebrow">MY CLOSET</p>
-    <h1 id="title">옷장</h1>
+    <p class="eyebrow" id="eyebrow">THIS WEEK</p>
+    <h1 id="title">코디</h1>
   </div>
-  <div class="top-r"><span id="count" class="count"></span><button id="acct" class="acct" type="button" aria-label="계정">로그인</button></div>
+  <div class="top-r"><span id="count" class="count" hidden></span><button id="acct" class="acct" type="button" aria-label="계정">로그인</button></div>
 </header>
 
 <main>
-  <section id="tab-closet" class="tab active">
+  <section id="tab-closet" class="tab">
     <div class="chips scroll" id="filter-cat"></div>
     <div class="tools">
       <label class="s">
@@ -39,7 +39,7 @@
     </div>
   </section>
 
-  <section id="tab-week" class="tab">
+  <section id="tab-week" class="tab active">
     <div class="panel">
       <p class="muted sm" id="week-sum" style="margin:0"></p>
       <div class="field">
@@ -59,16 +59,16 @@
   </section>
 </main>
 
-<button id="fab" class="fab" aria-label="옷 추가">
+<button id="fab" class="fab" aria-label="옷 추가" hidden>
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
 </button>
 
 <nav class="dock">
-  <button data-tab="closet" class="active" aria-label="옷장">
+  <button data-tab="closet" aria-label="옷장">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5a2 2 0 1 1 2 2v1.2l7 4.2c1.2.7.7 2.5-.7 2.5H3.7c-1.4 0-1.9-1.8-.7-2.5l7-4.2"/></svg>
     <span>옷장</span>
   </button>
-  <button data-tab="week" aria-label="코디">
+  <button data-tab="week" class="active" aria-label="코디">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 4 6l1.5 4L8 9v11h8V9l2.5 1L20 6l-5-3c-.5 1.3-1.6 2-3 2s-2.5-.7-3-2Z"/></svg>
     <span>코디</span>
   </button>
