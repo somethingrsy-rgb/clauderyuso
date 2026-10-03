@@ -43,21 +43,36 @@ const FIREBASE_CONFIG={
   messagingSenderId:"502142334513",
   appId:"1:502142334513:web:296b1e34ba11c324444710"
 };
-const cloud={on:false,user:null,fs:null,auth:null,unsubs:[],pending:false,fromCache:false,error:''};
+const cloud={on:false,user:null,fs:null,auth:null,unsubs:[],pending:false,fromCache:false,error:'',serverSeen:false,startedAt:0,counts:{},uploading:false};
 const base=()=>cloud.fs.collection('users').doc(cloud.user.uid);
 const lsGet=k=>{try{return localStorage.getItem(k)}catch{return null}};
 const lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch{}};
-function toast(msg,ms=3200){let t=$('#toast');if(!t){t=el('div',{id:'toast',className:'toast',role:'status'});document.body.append(t)}
+function toast(msg,ms=3200){let t=$('#toast');if(!t){t=el('div',{id:'toast',className:'toast',role:'status'})}
+  (document.querySelector('dialog[open]')||document.body).append(t);   // 모달이 열려 있으면 그 안에 띄워야 보임
   t.textContent=msg;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,ms)}
-function cloudSet(s,v){if(!cloud.user)return;base().collection(s).doc(String(v.id)).set(JSON.parse(JSON.stringify(v))).catch(e=>toast('클라우드 저장 실패: '+(e.code||e.message)))}
-function cloudDel(s,id){if(!cloud.user)return;base().collection(s).doc(String(id)).delete().catch(e=>toast('클라우드 삭제 실패: '+(e.code||e.message)))}
+const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej({code:'timeout'}),ms))]);
+const cloudErr=(e,what)=>e&&e.code==='timeout'?'서버에 연결되지 않아요. 광고 차단 확장 프로그램이나 네트워크를 확인해 주세요.':`클라우드 ${what} 실패: ${e.code||e.message}`;
+// 서버가 받았으면 true. 오래 응답이 없으면 알림을 띄운다(요청은 대기열에 남아 연결되면 자동으로 올라감)
+function cloudSet(s,v){if(!cloud.user)return Promise.resolve(false);
+  return withTimeout(base().collection(s).doc(String(v.id)).set(JSON.parse(JSON.stringify(v))),12000).then(()=>true).catch(e=>{toast(cloudErr(e,'저장'),6000);return false})}
+function cloudDel(s,id){if(!cloud.user)return Promise.resolve(false);
+  return withTimeout(base().collection(s).doc(String(id)).delete(),12000).then(()=>true).catch(e=>{toast(cloudErr(e,'삭제'),6000);return false})}
+async function uploadAll(){
+  if(!cloud.user||cloud.uploading)return;
+  cloud.uploading=true;renderAcct();
+  let ok=0,fail=0;
+  outer:for(const s of ['items','outfits'])for(const v of await all(s)){if(await cloudSet(s,v))ok++;else{fail++;break outer}}
+  cloud.uploading=false;renderAcct();
+  toast(fail?`${ok}개 올리고 멈췄어요. 연결 상태를 확인해 주세요.`:ok?`${ok}개를 클라우드에 올렸어요.`:'올릴 옷이 없어요.',5000);
+}
 
 let refreshTimer;const refreshSoon=()=>{clearTimeout(refreshTimer);refreshTimer=setTimeout(refresh,60)};
 function listen(name){
   let reconciled=false;
   return base().collection(name).onSnapshot({includeMetadataChanges:true},async snap=>{
     try{
-      cloud.fromCache=snap.metadata.fromCache;cloud.pending=snap.metadata.hasPendingWrites;
+      cloud.fromCache=snap.metadata.fromCache;cloud.pending=snap.metadata.hasPendingWrites;cloud.counts[name]=snap.size;
+      if(!snap.metadata.fromCache)cloud.serverSeen=true;
       let changed=false;
       for(const ch of snap.docChanges()){
         if(ch.doc.metadata.hasPendingWrites)continue;               // 내가 방금 쓴 변경은 이미 기기에 있음
@@ -80,7 +95,7 @@ function listen(name){
     }catch(e){console.error(e)}
   },e=>{cloud.error=e.code||e.message;toast(e.code==='permission-denied'?'저장 권한이 없어요. Firestore 보안 규칙을 확인해 주세요.':'동기화 오류: '+cloud.error);renderAcct()});
 }
-function startSync(){stopSync();cloud.unsubs=['items','outfits'].map(listen)}
+function startSync(){stopSync();cloud.startedAt=Date.now();cloud.serverSeen=false;cloud.counts={};cloud.unsubs=['items','outfits'].map(listen)}
 function stopSync(){cloud.unsubs.forEach(u=>u());cloud.unsubs=[];cloud.pending=false;cloud.fromCache=false;cloud.error=''}
 
 async function signIn(){
@@ -96,7 +111,10 @@ async function signIn(){
 function syncLabel(){
   if(cloud.error)return ['오류',cloud.error];
   if(!navigator.onLine)return ['오프라인','인터넷에 연결되면 자동으로 맞춰요.'];
-  if(cloud.pending||cloud.fromCache)return ['동기화 중…','잠시만 기다려 주세요.'];
+  if(!cloud.serverSeen)return Date.now()-cloud.startedAt>10000
+    ?['연결 안 됨','서버에 연결되지 않아요. 광고 차단 확장 프로그램이나 네트워크(회사·학교 망)를 확인해 주세요.']
+    :['연결 중…','서버에 연결하는 중이에요.'];
+  if(cloud.pending)return ['동기화 중…','잠시만 기다려 주세요.'];
   return ['동기화됨','다른 기기에서도 같은 옷장이 보여요.'];
 }
 function renderAcct(){
@@ -104,13 +122,18 @@ function renderAcct(){
   if(!cloud.user){b.className='acct';b.textContent='로그인';b.title='로그인하면 폰과 컴퓨터가 동기화돼요';}
   else{b.className='acct on';b.textContent=(cloud.user.displayName||cloud.user.email||'?').trim().charAt(0).toUpperCase();b.title=cloud.user.email||''}
   const d=$('#acct-body');if(!d)return;
+  const [st0,sub0]=cloud.user?syncLabel():['',''];
+  const sig=cloud.user?[cloud.user.uid,st0,sub0,items.length,cloud.counts.items,cloud.uploading].join('|'):'out';
+  if(d.dataset.sig===sig)return;d.dataset.sig=sig;      // 내용이 그대로면 다시 그리지 않아 버튼 터치가 끊기지 않게 함
   if(!cloud.user){
     d.replaceChildren(el('p',{className:'muted',textContent:'구글 계정으로 로그인하면 폰과 컴퓨터에서 같은 옷장을 볼 수 있어요. 로그인하지 않으면 이 기기에만 저장돼요.'}),
       el('button',{className:'primary wide',textContent:'Google로 로그인',onclick:signIn}));
   }else{
     const [st,sub]=syncLabel();
     d.replaceChildren(el('div',{className:'who'},el('b',{textContent:cloud.user.displayName||'내 계정'}),el('span',{className:'muted',textContent:cloud.user.email||''})),
-      el('div',{className:'syncrow'},el('i',{className:'led '+(st==='동기화됨'?'ok':st==='오류'?'bad':'wait')}),el('b',{textContent:st}),el('span',{className:'muted',textContent:sub})),
+      el('div',{className:'syncrow'},el('i',{className:'led '+(st==='동기화됨'?'ok':(st==='오류'||st==='연결 안 됨')?'bad':'wait')}),el('b',{textContent:st}),el('span',{className:'muted',textContent:sub})),
+      el('p',{className:'muted sm',textContent:`이 기기 ${items.length}벌 · 클라우드 ${cloud.counts.items??'-'}벌`}),
+      el('button',{className:'ghost wide',textContent:cloud.uploading?'올리는 중…':'이 기기의 옷 다시 올리기',disabled:cloud.uploading,onclick:uploadAll}),
       el('p',{className:'muted sm',textContent:'로그아웃해도 이 기기에 저장된 옷은 그대로 남아요.'}),
       el('button',{className:'ghost wide',textContent:'로그아웃',onclick:async()=>{await cloud.auth.signOut();$('#d-acct').close()}}));
   }
@@ -119,6 +142,7 @@ function initCloud(){
   $('#acct').onclick=()=>{renderAcct();if(!cloud.user&&!cloud.on)return signIn();$('#d-acct').showModal()};
   document.querySelectorAll('#d-acct [data-close]').forEach(b=>b.onclick=()=>$('#d-acct').close());
   window.addEventListener('online',renderAcct);window.addEventListener('offline',renderAcct);
+  setInterval(()=>{if($('#d-acct').open)renderAcct()},2000);
   if(typeof firebase==='undefined'){renderAcct();return}           // SDK를 못 받으면 기기 저장만 사용
   try{
     firebase.initializeApp(FIREBASE_CONFIG);
