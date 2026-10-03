@@ -392,7 +392,7 @@ function recommend(tk=temp,opt={}){
 }
 
 /* ---------- 탭 / 시작 ---------- */
-const TITLES={closet:['MY CLOSET','옷장'],week:['THIS WEEK','코디']};
+const TITLES={closet:['MY CLOSET','옷장'],combo:['OUTFITS','코디'],week:['THIS WEEK','주간']};
 document.querySelectorAll('.dock button[data-tab]').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.dock button[data-tab],.tab').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');$('#tab-'+b.dataset.tab).classList.add('active');

@@ -15,7 +15,7 @@
 <header class="top">
   <div>
     <p class="eyebrow" id="eyebrow">THIS WEEK</p>
-    <h1 id="title">코디</h1>
+    <h1 id="title">주간</h1>
   </div>
   <div class="top-r"><span id="count" class="count" hidden></span><button id="acct" class="acct" type="button" aria-label="계정">로그인</button></div>
 </header>
@@ -45,9 +45,11 @@
       <button id="btn-clear-week" class="ghost small">모두 비우기</button>
     </div>
     <div id="week-grid" class="weekplan"></div>
-    <h2 class="section">자주 입는 조합</h2>
+  </section>
+
+  <section id="tab-combo" class="tab">
     <div id="combo-list" class="combos"></div>
-    <div class="row" style="padding:12px 22px 0"><button id="btn-new-combo" class="ghost">＋ 새 조합 만들기</button></div>
+    <div class="row" style="padding:12px 22px 0"><button id="btn-new-combo" class="ghost">＋ 새 코디 만들기</button></div>
   </section>
 </main>
 
@@ -60,9 +62,13 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5a2 2 0 1 1 2 2v1.2l7 4.2c1.2.7.7 2.5-.7 2.5H3.7c-1.4 0-1.9-1.8-.7-2.5l7-4.2"/></svg>
     <span>옷장</span>
   </button>
-  <button data-tab="week" class="active" aria-label="코디">
+  <button data-tab="combo" aria-label="코디">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 4 6l1.5 4L8 9v11h8V9l2.5 1L20 6l-5-3c-.5 1.3-1.6 2-3 2s-2.5-.7-3-2Z"/></svg>
     <span>코디</span>
+  </button>
+  <button data-tab="week" class="active" aria-label="주간">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>
+    <span>주간</span>
   </button>
 </nav>
 
@@ -107,19 +113,19 @@
 
 <dialog id="d-pick"><div class="sheet-pad">
   <div class="sheet-head"><h2 id="pk-title">코디</h2><button type="button" class="icon" data-close aria-label="닫기">✕</button></div>
-  <label class="field" id="pk-name-wrap" hidden><span class="lbl">조합 이름</span><input id="pk-name" placeholder="예: 출근할 때 입는 조합" autocomplete="off"></label>
+  <label class="field" id="pk-name-wrap" hidden><span class="lbl">코디 이름</span><input id="pk-name" placeholder="예: 출근할 때 입는 코디" autocomplete="off"></label>
   <div class="pk-sel" id="pk-sel"></div>
   <div class="chips" id="pk-cats"></div>
   <div class="pk-grid" id="pk-grid"></div>
   <div class="pk-save" id="pk-save" hidden>
-    <input id="pk-combo-name" placeholder="자주 입는 조합으로 등록할 이름" autocomplete="off">
-    <button type="button" class="ghost small" id="pk-save-btn">조합으로 등록</button>
+    <input id="pk-combo-name" placeholder="코디로 등록할 이름" autocomplete="off">
+    <button type="button" class="ghost small" id="pk-save-btn">코디로 등록</button>
   </div>
   <div class="row end" id="pk-acts"></div>
 </div></dialog>
 
 <dialog id="d-apply"><div class="sheet-pad">
-  <div class="sheet-head"><h2 id="ap-title">조합 불러오기</h2><button type="button" class="icon" data-close aria-label="닫기">✕</button></div>
+  <div class="sheet-head"><h2 id="ap-title">코디 불러오기</h2><button type="button" class="icon" data-close aria-label="닫기">✕</button></div>
   <div class="ap-list" id="ap-list"></div>
 </div></dialog>
 
