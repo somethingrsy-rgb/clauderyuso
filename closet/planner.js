@@ -15,7 +15,8 @@ function savePlan(day,patch){
   planQ=run.catch(()=>{});return run;
 }
 const todayIdx=()=>(new Date().getDay()+6)%7;
-function weekDates(){const t=new Date(),off=todayIdx();return DAYS.map((_,i)=>{const d=new Date(t);d.setDate(t.getDate()-off+i);return d})}
+const nextWeek=()=>todayIdx()===6;   // 일요일에는 다음 주(월~일)를 보여줌
+function weekDates(){const t=new Date(),off=todayIdx()-(nextWeek()?7:0);return DAYS.map((_,i)=>{const d=new Date(t);d.setDate(t.getDate()-off+i);return d})}
 const miniBtn=(t,fn,cls='')=>el('button',{type:'button',className:'mini-btn '+cls,textContent:t,onclick:fn});
 const thumbs=(ids,cls='piece')=>sortIds(ids).map(id=>{const it=itemById(id);return el('span',{className:cls},el('img',{src:it.photo,alt:it.name}),el('small',{textContent:it.name||it.cat}))});
 
@@ -33,7 +34,7 @@ function toggleSel(ids,id){
 /* ---------- 요일 칸 ---------- */
 function renderWeek(){
   const box=$('#week-grid');if(!box)return;
-  const dates=weekDates(),ti=todayIdx();
+  const dates=weekDates(),ti=nextWeek()?-1:todayIdx();   // 다음 주에는 '오늘' 표시 없음
   const planned=DAYS.filter(d=>sortIds(planOf(d).ids).length).length;
   const pieces=new Set(DAYS.flatMap(d=>sortIds(planOf(d).ids))).size;
   $('#week-sum').textContent=planned?`${planned}일 계획됨 · 옷 ${pieces}벌`:'아직 비어 있어요';
