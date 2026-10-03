@@ -17,7 +17,7 @@
     <p class="eyebrow" id="eyebrow">MY CLOSET</p>
     <h1 id="title">옷장</h1>
   </div>
-  <span id="count" class="count"></span>
+  <div class="top-r"><span id="count" class="count"></span><button id="acct" class="acct" type="button" aria-label="계정">로그인</button></div>
 </header>
 
 <main>
@@ -104,6 +104,14 @@
   </form>
 </dialog>
 
+<dialog id="d-acct"><div class="sheet-pad">
+  <div class="sheet-head"><h2>계정</h2><button type="button" class="icon" data-close aria-label="닫기">✕</button></div>
+  <div id="acct-body" class="acct-body"></div>
+</div></dialog>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
