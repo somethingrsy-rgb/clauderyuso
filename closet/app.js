@@ -112,14 +112,16 @@ function outfitScore(parts,mood){
   if(mood==='color')s+=colorful===1?3:-2;
   return s+Math.random()*1.5;                    // 매번 다른 결과
 }
-function recommend(){
-  const t=TEMP[temp];
+function recommend(tk=temp,opt={}){
+  const t=TEMP[tk],usage=opt.usage||{},near=opt.near||new Set();
   const ok=c=>items.filter(i=>i.cat===c&&i.seasons.some(s=>t.s.includes(s)));
   const tops=ok('상의'),bottoms=ok('하의'),dresses=ok('원피스'),outers=ok('아우터'),shoes=ok('신발'),accs=ok('액세서리');
   const bases=[];
   tops.forEach(a=>bottoms.forEach(b=>bases.push([a,b])));
   dresses.forEach(d=>bases.push([d]));
   if(!bases.length)return null;
+  // 일주일 코디에서는 이미 입은 옷, 전날/다음날과 겹치는 옷에 감점
+  const repeat=parts=>parts.reduce((a,p)=>{const w=(p.cat==='신발'||p.cat==='액세서리')?.5:1.4;return a+w*(usage[p.id]||0)+(w>1&&near.has(p.id)?4:0)},0);
   let best=null,bs=-Infinity;
   for(let n=0;n<200;n++){
     const parts=[...pick(bases)];
@@ -127,7 +129,7 @@ function recommend(){
     else if(!t.outer&&outers.length&&Math.random()<.25)parts.push(pick(outers));
     if(shoes.length)parts.push(pick(shoes));
     if(accs.length&&Math.random()<.4)parts.push(pick(accs));
-    const s=outfitScore(parts,mood);
+    const s=outfitScore(parts,mood)-repeat(parts);
     if(s>bs){bs=s;best=parts}
   }
   return best;
@@ -156,7 +158,40 @@ function renderSaved(){
       el('button',{className:'x',textContent:'✕',title:'삭제','aria-label':'삭제',onclick:async()=>{await del('outfits',o.id);await refresh()}}))});
   box.replaceChildren(...(rows.length?rows:[el('p',{className:'muted',textContent:'아직 저장한 코디가 없어요.'})]));
 }
-$('#btn-recommend').onclick=()=>showOutfit(recommend());
+/* ---------- 일주일 코디 ---------- */
+const DOW=['일','월','화','수','목','금','토'];
+let week=[];
+function dayLabel(i){const d=new Date();d.setDate(d.getDate()+i);return {text:`${d.getMonth()+1}/${d.getDate()} (${DOW[d.getDay()]})`,today:i===0}}
+function weekUsage(skip){const u={};week.forEach((w,i)=>{if(i!==skip&&w.parts)w.parts.forEach(p=>u[p.id]=(u[p.id]||0)+1)});return u}
+function genDay(i){
+  const near=new Set();[i-1,i+1].forEach(j=>week[j]?.parts?.forEach(p=>near.add(p.id)));
+  week[i].parts=recommend(week[i].temp,{usage:weekUsage(i),near});
+}
+function makeWeek(){
+  week=Array.from({length:7},()=>({temp,parts:null}));week.forEach((_,i)=>genDay(i));
+  $('#outfit-result').replaceChildren();showWeek();
+}
+function dayCard(w,i){
+  const L=dayLabel(i);
+  const sel=el('select',{'aria-label':L.text+' 날씨'},...Object.entries(TEMP_LABEL).map(([k,[l,sub]])=>el('option',{value:k,textContent:`${l} ${sub}`,selected:k===w.temp})));
+  sel.onchange=()=>{w.temp=sel.value;genDay(i);showWeek()};
+  const head=el('div',{className:'day-head'},...(L.today?[el('span',{className:'today',textContent:'오늘'})]:[]),el('b',{textContent:L.text}),sel,
+    el('button',{className:'mini-btn',type:'button',textContent:'다시',onclick:()=>{genDay(i);showWeek()}}));
+  const body=w.parts?el('div',{className:'strip'},...w.parts.map(p=>el('div',{className:'piece'},el('img',{src:p.photo,alt:p.name}),el('small',{textContent:(p.name||p.cat).replace(' (예시)','')}))))
+    :el('p',{className:'muted sm',textContent:'이 날씨에 맞는 상의+하의(또는 원피스)가 부족해요.'});
+  return el('div',{className:'day'},head,body);
+}
+function showWeek(){
+  const cnt={};week.forEach(w=>w.parts?.forEach(p=>cnt[p.id]=(cnt[p.id]||0)+1));
+  const kinds=Object.keys(cnt).length,rep=Math.max(0,...Object.values(cnt));
+  $('#week-result').replaceChildren(el('div',{className:'look'},
+    el('div',{className:'look-head'},el('h2',{textContent:'일주일 코디'}),el('small',{className:'muted',textContent:kinds?`옷 ${kinds}벌 · 최대 ${rep}번 반복`:''})),
+    el('p',{className:'muted sm',textContent:'요일마다 날씨를 바꾸면 그날 코디만 다시 만들어요.'}),
+    el('div',{className:'week'},...week.map(dayCard)),
+    el('div',{className:'row'},el('button',{className:'primary',textContent:'일주일 다시 만들기',onclick:makeWeek}))));
+}
+$('#btn-week').onclick=makeWeek;
+$('#btn-recommend').onclick=()=>{$('#week-result').replaceChildren();showOutfit(recommend())};
 
 /* ---------- 현재 날씨 (Open-Meteo, 키 불필요) ---------- */
 $('#btn-weather').onclick=()=>{
