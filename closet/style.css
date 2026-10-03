@@ -97,6 +97,18 @@ select:focus-visible{outline-color:var(--accent)}
 .mini .x{margin-left:auto;border:0;background:none;color:var(--muted);font-size:16px;padding:10px}
 .saved .muted{margin:0}
 
+/* account */
+.top-r{display:flex;align-items:center;gap:10px;padding-bottom:4px}
+.top-r .count{padding-bottom:0}
+.acct{border:0;background:var(--sunk);border-radius:999px;min-width:34px;height:34px;padding:0 14px;font-size:13px;font-weight:700}
+.acct.on{background:var(--accent);color:var(--on-accent);padding:0;width:34px}
+.acct-body{display:grid;gap:16px}
+.acct-body p{margin:0}
+.who{display:grid;gap:2px}.who b{font-size:18px}
+.syncrow{display:grid;grid-template-columns:auto auto 1fr;gap:4px 8px;align-items:center;background:var(--sunk);border-radius:14px;padding:12px 14px}
+.syncrow .muted{grid-column:1/-1;font-size:13px}
+.led{width:9px;height:9px;border-radius:50%;background:var(--muted)}.led.ok{background:#2fa866}.led.bad{background:#d6422f}.led.wait{background:#e0a21b}
+.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));translate:-50% 0;background:var(--fg);color:var(--bg);padding:11px 18px;border-radius:999px;font-size:14px;z-index:30;max-width:calc(100vw - 32px);text-align:center;box-shadow:var(--shadow)}
 /* weekly */
 .week{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
 .day{min-width:0}
@@ -132,7 +144,7 @@ dialog{border:0;padding:0;background:var(--surface);color:var(--fg);width:min(10
 dialog[open]{animation:sheet .28s cubic-bezier(.2,.9,.3,1)}
 @keyframes sheet{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
 dialog::backdrop{background:#0009;backdrop-filter:blur(3px)}
-form{display:grid;gap:20px;padding:22px 22px calc(24px + env(safe-area-inset-bottom))}
+form,.sheet-pad{display:grid;gap:20px;padding:22px 22px calc(24px + env(safe-area-inset-bottom))}
 .sheet-head{display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:2;background:var(--surface);margin:-22px -22px 0;padding:20px 22px 10px}
 h2#dlg-title{margin:0;font-size:22px;letter-spacing:-.02em}
 .drop{position:relative;display:grid;place-items:center;aspect-ratio:16/9;border-radius:20px;background:var(--sunk);overflow:hidden;cursor:pointer;color:var(--muted);border:1.5px dashed var(--line)}

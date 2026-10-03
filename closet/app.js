@@ -15,9 +15,125 @@ const open=()=>new Promise((res,rej)=>{const r=indexedDB.open('closet',1);
   r.onupgradeneeded=()=>{r.result.createObjectStore('items',{keyPath:'id',autoIncrement:true});r.result.createObjectStore('outfits',{keyPath:'id',autoIncrement:true})};
   r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
 const tx=(s,m,fn)=>new Promise((res,rej)=>{const t=db.transaction(s,m);const r=fn(t.objectStore(s));t.oncomplete=()=>res(r.result);t.onerror=()=>rej(t.error)});
+const uid=()=>(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2,10));
 const all=s=>tx(s,'readonly',o=>o.getAll());
-const put=(s,v)=>tx(s,'readwrite',o=>o.put(v));
-const del=(s,id)=>tx(s,'readwrite',o=>o.delete(id));
+// 기기 안 저장소만 건드리는 함수 (클라우드에서 내려받은 변경을 반영할 때도 사용)
+const localPut=(s,v)=>tx(s,'readwrite',o=>o.put(v));
+const localDel=(s,id)=>tx(s,'readwrite',o=>o.delete(id));
+// 화면에서 쓰는 함수: 기기에 저장하고, 로그인 상태면 클라우드에도 반영
+const put=async(s,v)=>{if(!v.id)v.id=uid();v.updatedAt=Date.now();await localPut(s,v);cloudSet(s,v)};
+const del=async(s,id)=>{await localDel(s,id);cloudDel(s,id)};
+
+// 예전 버전의 숫자 id를 기기 간에 겹치지 않는 문자열 id로 바꿔 둔다
+async function migrateIds(){
+  const map={};
+  for(const it of await all('items'))if(typeof it.id==='number'){const n=uid();map[it.id]=n;await localDel('items',it.id);await localPut('items',{...it,id:n})}
+  for(const o of await all('outfits')){
+    const ids=o.ids.map(i=>map[i]??i);
+    if(typeof o.id==='number'||ids.some((x,k)=>x!==o.ids[k])){await localDel('outfits',o.id);await localPut('outfits',{...o,id:typeof o.id==='number'?uid():o.id,ids})}
+  }
+}
+
+/* ---------- 클라우드 동기화 (Firebase) ---------- */
+const FIREBASE_CONFIG={
+  apiKey:"AIzaSyC7LCM2tggcjLIUTofov_Iksj631JZUnUE",
+  authDomain:"my-closet-5bd18.firebaseapp.com",
+  projectId:"my-closet-5bd18",
+  storageBucket:"my-closet-5bd18.firebasestorage.app",
+  messagingSenderId:"502142334513",
+  appId:"1:502142334513:web:296b1e34ba11c324444710"
+};
+const cloud={on:false,user:null,fs:null,auth:null,unsubs:[],pending:false,fromCache:false,error:''};
+const base=()=>cloud.fs.collection('users').doc(cloud.user.uid);
+const lsGet=k=>{try{return localStorage.getItem(k)}catch{return null}};
+const lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch{}};
+function toast(msg,ms=3200){let t=$('#toast');if(!t){t=el('div',{id:'toast',className:'toast',role:'status'});document.body.append(t)}
+  t.textContent=msg;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,ms)}
+function cloudSet(s,v){if(!cloud.user)return;base().collection(s).doc(String(v.id)).set(JSON.parse(JSON.stringify(v))).catch(e=>toast('클라우드 저장 실패: '+(e.code||e.message)))}
+function cloudDel(s,id){if(!cloud.user)return;base().collection(s).doc(String(id)).delete().catch(e=>toast('클라우드 삭제 실패: '+(e.code||e.message)))}
+
+let refreshTimer;const refreshSoon=()=>{clearTimeout(refreshTimer);refreshTimer=setTimeout(refresh,60)};
+function listen(name){
+  let reconciled=false;
+  return base().collection(name).onSnapshot({includeMetadataChanges:true},async snap=>{
+    try{
+      cloud.fromCache=snap.metadata.fromCache;cloud.pending=snap.metadata.hasPendingWrites;
+      let changed=false;
+      for(const ch of snap.docChanges()){
+        if(ch.doc.metadata.hasPendingWrites)continue;               // 내가 방금 쓴 변경은 이미 기기에 있음
+        const d={...ch.doc.data(),id:ch.doc.id};
+        if(ch.type==='removed')await localDel(name,d.id);else await localPut(name,d);
+        changed=true;
+      }
+      // 서버에서 받은 첫 목록과 기기 목록을 한 번 맞춘다
+      if(!reconciled&&!snap.metadata.fromCache){
+        reconciled=true;
+        const cloudIds=new Set(snap.docs.map(d=>d.id)),key=`sync:${cloud.user.uid}:${name}`,seen=lsGet(key)==='1';
+        for(const v of await all(name))if(!cloudIds.has(String(v.id))){
+          if(seen){await localDel(name,v.id);changed=true}          // 다른 기기에서 지운 것
+          else cloudSet(name,v);                                    // 이 기기에만 있던 것은 올림
+        }
+        lsSet(key,'1');
+      }
+      if(changed)refreshSoon();
+      renderAcct();
+    }catch(e){console.error(e)}
+  },e=>{cloud.error=e.code||e.message;toast(e.code==='permission-denied'?'저장 권한이 없어요. Firestore 보안 규칙을 확인해 주세요.':'동기화 오류: '+cloud.error);renderAcct()});
+}
+function startSync(){stopSync();cloud.unsubs=['items','outfits'].map(listen)}
+function stopSync(){cloud.unsubs.forEach(u=>u());cloud.unsubs=[];cloud.pending=false;cloud.fromCache=false;cloud.error=''}
+
+async function signIn(){
+  if(!cloud.on)return toast('로그인 기능을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.');
+  const p=new firebase.auth.GoogleAuthProvider();
+  try{await cloud.auth.signInWithPopup(p)}
+  catch(e){
+    if(e.code==='auth/popup-blocked'||e.code==='auth/operation-not-supported-in-this-environment'){try{await cloud.auth.signInWithRedirect(p)}catch(e2){toast('로그인 실패: '+(e2.code||e2.message),6000)}}
+    else if(e.code==='auth/unauthorized-domain')toast('이 주소가 Firebase 승인된 도메인에 없어요.',6000);
+    else if(e.code!=='auth/popup-closed-by-user'&&e.code!=='auth/cancelled-popup-request')toast('로그인 실패: '+(e.code||e.message),6000);
+  }
+}
+function syncLabel(){
+  if(cloud.error)return ['오류',cloud.error];
+  if(!navigator.onLine)return ['오프라인','인터넷에 연결되면 자동으로 맞춰요.'];
+  if(cloud.pending||cloud.fromCache)return ['동기화 중…','잠시만 기다려 주세요.'];
+  return ['동기화됨','다른 기기에서도 같은 옷장이 보여요.'];
+}
+function renderAcct(){
+  const b=$('#acct');
+  if(!cloud.user){b.className='acct';b.textContent='로그인';b.title='로그인하면 폰과 컴퓨터가 동기화돼요';}
+  else{b.className='acct on';b.textContent=(cloud.user.displayName||cloud.user.email||'?').trim().charAt(0).toUpperCase();b.title=cloud.user.email||''}
+  const d=$('#acct-body');if(!d)return;
+  if(!cloud.user){
+    d.replaceChildren(el('p',{className:'muted',textContent:'구글 계정으로 로그인하면 폰과 컴퓨터에서 같은 옷장을 볼 수 있어요. 로그인하지 않으면 이 기기에만 저장돼요.'}),
+      el('button',{className:'primary wide',textContent:'Google로 로그인',onclick:signIn}));
+  }else{
+    const [st,sub]=syncLabel();
+    d.replaceChildren(el('div',{className:'who'},el('b',{textContent:cloud.user.displayName||'내 계정'}),el('span',{className:'muted',textContent:cloud.user.email||''})),
+      el('div',{className:'syncrow'},el('i',{className:'led '+(st==='동기화됨'?'ok':st==='오류'?'bad':'wait')}),el('b',{textContent:st}),el('span',{className:'muted',textContent:sub})),
+      el('p',{className:'muted sm',textContent:'로그아웃해도 이 기기에 저장된 옷은 그대로 남아요.'}),
+      el('button',{className:'ghost wide',textContent:'로그아웃',onclick:async()=>{await cloud.auth.signOut();$('#d-acct').close()}}));
+  }
+}
+function initCloud(){
+  $('#acct').onclick=()=>{renderAcct();if(!cloud.user&&!cloud.on)return signIn();$('#d-acct').showModal()};
+  document.querySelectorAll('#d-acct [data-close]').forEach(b=>b.onclick=()=>$('#d-acct').close());
+  window.addEventListener('online',renderAcct);window.addEventListener('offline',renderAcct);
+  if(typeof firebase==='undefined'){renderAcct();return}           // SDK를 못 받으면 기기 저장만 사용
+  try{
+    firebase.initializeApp(FIREBASE_CONFIG);
+    cloud.auth=firebase.auth();cloud.fs=firebase.firestore();
+    cloud.fs.enablePersistence({synchronizeTabs:true}).catch(()=>{});  // 오프라인에서도 쓰고 다시 연결되면 올림
+    cloud.on=true;
+    cloud.auth.getRedirectResult().catch(e=>toast('로그인 실패: '+(e.code||e.message),6000));
+    cloud.auth.onAuthStateChanged(user=>{
+      cloud.user=user;
+      if(user)startSync();else stopSync();
+      renderAcct();
+    });
+  }catch(e){console.error(e);cloud.on=false}
+  renderAcct();
+}
 
 /* ---------- 상태 ---------- */
 let items=[],outfits=[],filter='전체',editing=null,photoData=null,current=null;
@@ -227,6 +343,6 @@ document.querySelectorAll('.dock button[data-tab]').forEach(b=>b.onclick=()=>{
   $('#count').hidden=b.dataset.tab!=='closet';window.scrollTo({top:0});
 });
 (async()=>{
-  renderSegs();renderCatChips();renderSwatches();db=await open();await refresh();
+  renderSegs();renderCatChips();renderSwatches();db=await open();await migrateIds();await refresh();initCloud();
   if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
