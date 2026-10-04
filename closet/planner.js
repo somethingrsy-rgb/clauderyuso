@@ -291,18 +291,78 @@ async function applyCombo(o,day){
   renderWeek();toast(`${DAY_FULL[day]}에 넣었어요.`);
 }
 const comboName=o=>o.name||`코디 ${outfits.indexOf(o)+1}`;
+// 코디 카드의 큰 이미지: 콜라주 → 올려 둔 착용샷(최대 3장) → 올리기 칸을 옆으로 넘김
+const MAX_LOOKS=3,LGAP=16;let onlyLooks=false,lookTarget=null;const comboPos={};
 function renderCombos(){
   const box=$('#combo-list');if(!box)return;
-  const list=outfits.slice().sort((a,b)=>(b.uses||0)-(a.uses||0)||(b.at||0)-(a.at||0));
-  box.replaceChildren(...(list.length?list.map(comboCard):[el('p',{className:'muted sm',style:'padding:0 22px;margin:0',textContent:'아직 등록한 코디가 없어요. 자주 입는 차림을 코디로 만들어 두면 어느 요일에든 한 번에 넣을 수 있어요.'})]));
+  const withLooks=outfits.filter(o=>(o.looks||[]).length);
+  const f=$('#f-looks');f.classList.toggle('on',onlyLooks);f.setAttribute('aria-pressed',onlyLooks);f.textContent=`착용샷 있는 것만 · ${withLooks.length}`;
+  const list=(onlyLooks?withLooks:outfits).slice().sort((a,b)=>(b.uses||0)-(a.uses||0)||(b.at||0)-(a.at||0));
+  const none=onlyLooks&&outfits.length?'착용샷을 올린 코디가 아직 없어요.':'아직 등록한 코디가 없어요. 자주 입는 차림을 코디로 만들어 두면 어느 요일에든 한 번에 넣을 수 있어요.';
+  box.replaceChildren(...(list.length?list.map(comboCard):[el('p',{className:'muted sm',style:'padding:0 22px;margin:0',textContent:none})]));
+  goCombos();
+}
+function goCombos(){document.querySelectorAll('#combo-list .looks').forEach(w=>w._go&&w._go(false))}   // 가려진 탭에서 다시 그려졌을 때도 보던 장으로
+function lookSlide(o,i){
+  let armed=false;
+  const del=el('button',{type:'button',className:'look-del',textContent:'삭제',onclick:async e=>{
+    const b=e.currentTarget;
+    if(!armed){armed=true;b.textContent='한 번 더';setTimeout(()=>{armed=false;b.textContent='삭제'},3000);return}
+    comboPos[o.id]=0;await put('outfits',{...o,looks:o.looks.filter((_,k)=>k!==i)});await refresh();
+  }});
+  return el('div',{className:'look-photo'},el('img',{src:o.looks[i],alt:`${comboName(o)} 착용샷 ${i+1}`}),del);
+}
+function addSlide(o){
+  return el('button',{type:'button',className:'look-add',onclick:()=>{lookTarget=o.id;$('#look-file').click()}},
+    el('b',{textContent:'＋ 착용샷 올리기'}),el('small',{textContent:'입어본 사진을 올려 두세요'}));
+}
+function looksSlider(o,ids){
+  const looks=o.looks||[];
+  const slides=[ids.length?el('button',{type:'button',className:'collage',onclick:()=>openPicker({mode:'combo',comboId:o.id}),'aria-label':comboName(o)+' 수정'},collageImg(ids)):el('p',{className:'muted sm',style:'margin:0',textContent:'옷이 모두 삭제됐어요. 수정에서 다시 고르세요.'}),
+    ...looks.map((_,i)=>lookSlide(o,i)),...(looks.length<MAX_LOOKS?[addSlide(o)]:[])];
+  const track=el('div',{className:'look-track'},...slides.map(x=>el('div',{className:'look-slide'},x)));
+  const n=slides.length,pos=()=>Math.min(comboPos[o.id]||0,n-1);
+  const go=(i,smooth=true)=>{comboPos[o.id]=Math.max(0,Math.min(n-1,i));if(track.clientWidth)track.scrollTo({left:comboPos[o.id]*(track.clientWidth+LGAP),behavior:smooth?'smooth':'instant'});mark()};
+  const mark=()=>{dots.forEach((d,k)=>d.setAttribute('aria-current',k===pos()));prev.disabled=pos()===0;next.disabled=pos()===n-1};
+  const prev=el('button',{type:'button',className:'tarrow',textContent:'‹','aria-label':'이전',onclick:()=>go(pos()-1)});
+  const next=el('button',{type:'button',className:'tarrow',textContent:'›','aria-label':'다음',onclick:()=>go(pos()+1)});
+  const dots=slides.map((_,k)=>el('button',{type:'button',className:'tdot','aria-label':`${k+1}번째`,onclick:()=>go(k)},el('i')));
+  let t;track.onscroll=()=>{clearTimeout(t);t=setTimeout(()=>{if(track.clientWidth){comboPos[o.id]=Math.round(track.scrollLeft/(track.clientWidth+LGAP));mark()}},60)};
+  const wrap=el('div',{className:'looks'},track,...(n>1?[el('div',{className:'today-nav'},prev,el('div',{className:'tdots'},...dots),next)]:[]));
+  wrap._go=smooth=>go(pos(),smooth);
+  return wrap;
 }
 function comboCard(o){
   const ids=sortIds(o.ids);
   return el('div',{className:'combo'},
     el('div',{className:'combo-head'},el('b',{textContent:comboName(o)}),el('small',{className:'muted',textContent:o.uses?`${o.uses}회 사용`:'아직 안 썼어요'}),
       miniBtn('수정',()=>openPicker({mode:'combo',comboId:o.id}),'quiet'),miniBtn('저장',()=>saveCollage(ids,comboName(o)),'quiet')),
-    ids.length?el('button',{type:'button',className:'collage',onclick:()=>openPicker({mode:'combo',comboId:o.id}),'aria-label':comboName(o)+' 수정'},collageImg(ids)):el('p',{className:'muted sm',style:'margin:0',textContent:'옷이 모두 삭제됐어요. 수정에서 다시 고르세요.'}),
+    looksSlider(o,ids),
     el('div',{className:'combo-days'},el('span',{className:'lbl',textContent:'넣기'}),...DAYS.map(d=>el('button',{type:'button',className:'dbtn',textContent:d,'aria-label':DAY_FULL[d]+'에 넣기',disabled:!ids.length,onclick:()=>applyCombo(o,d)}))));
+}
+// 올린 사진은 긴 변 960px 이하 JPEG로 줄이고, 3장을 합쳐도 클라우드 문서 한도(1MB) 안에 들어오게 한 장을 약 280KB 이하로 맞춤
+async function shrinkLook(file){
+  const url=URL.createObjectURL(file);
+  try{
+    const im=await loadImg(url);let k=Math.min(1,960/Math.max(im.naturalWidth,im.naturalHeight)),q=.85,out;
+    for(let n=0;n<8;n++){
+      const c=el('canvas',{width:Math.max(1,Math.round(im.naturalWidth*k)),height:Math.max(1,Math.round(im.naturalHeight*k))}),g=c.getContext('2d');
+      g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(im,0,0,c.width,c.height);
+      out=c.toDataURL('image/jpeg',q);if(out.length<=280000)return out;
+      if(q>.5)q-=.1;else k*=.85;
+    }
+    return out.length<=400000?out:null;
+  }finally{URL.revokeObjectURL(url)}
+}
+async function addLooks(files){
+  const o=outfits.find(x=>x.id===lookTarget);if(!o)return;
+  const room=MAX_LOOKS-(o.looks||[]).length,list=[...files].slice(0,room),added=[];
+  for(const f of list){try{const u=await shrinkLook(f);if(u)added.push(u);else toast('사진이 너무 커서 줄이지 못했어요.')}catch{toast('사진을 읽지 못했어요.')}}
+  if(files.length>room)toast(`착용샷은 코디마다 ${MAX_LOOKS}장까지예요.`);
+  if(!added.length)return;
+  const looks=[...(o.looks||[]),...added];
+  comboPos[o.id]=looks.length;                                 // 방금 올린 마지막 사진으로 이동
+  await put('outfits',{...o,looks});await refresh();
 }
 function openApply(day){
   $('#ap-title').textContent=`${DAY_FULL[day]}에 넣을 코디`;
@@ -328,5 +388,7 @@ function initPlanner(){
     $(id).addEventListener('click',e=>{if(e.target===$(id))$(id).close()});
   }
   $('#d-pick').addEventListener('close',()=>refresh());
+  $('#f-looks').onclick=()=>{onlyLooks=!onlyLooks;renderCombos()};
+  $('#look-file').onchange=async e=>{const fs=[...e.target.files];e.target.value='';if(fs.length)await addLooks(fs)};
   renderWeek();
 }
