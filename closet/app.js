@@ -237,11 +237,12 @@ function chip(label,on,fn){return el('button',{className:'chip'+(on?' on':''),ty
 function dot(c){return el('i',{className:'dot',style:`background:${COLORS[c]||'#ccc'}`})}
 function card(it,onclick){
   const on=selMode&&selIds.includes(it.id),b=el('button',{className:'item'+(on?' sel':''),type:'button',onclick});
-  b.append(el('span',{className:'ph'},el('img',{src:it.photo,alt:it.name,loading:'lazy'}),...(on?[el('span',{className:'chk',textContent:'✓'})]:[])),
+  b.dataset.id=it.id;
+  b.append(el('span',{className:'ph'},el('img',{src:it.photo,alt:it.name,loading:'lazy'}),...(on?[el('span',{className:'chk'+(it.id===lastSel?' pop':''),textContent:'✓'})]:[])),
     el('span',{className:'meta'},el('b',{textContent:it.name||it.cat}),el('small',{},dot(it.color),`${it.color} · ${it.cat}`)));
   return b}
 // 옷장에서 여러 벌을 눌러 골라 코디로 저장 (종류별 한 벌 규칙은 코디 만들기와 같음)
-let selMode=false,selIds=[];
+let selMode=false,selIds=[],lastSel=null;   // lastSel: 방금 고른 옷만 체크 표시가 톡 튀게
 function setSel(on){
   selMode=on;selIds=[];$('#selbar').hidden=!on;$('#fab').hidden=on;$('#btn-sel').textContent=on?'취소':'선택';
   renderCloset();updateSel();
@@ -253,7 +254,7 @@ function renderCloset(){
   const q=$('#q').value.trim().toLowerCase(),so=$('#sort').value;
   const list=items.filter(i=>(filter==='전체'||i.cat===filter)&&(!q||[i.name,i.cat,i.color].join(' ').toLowerCase().includes(q)))
     .sort(so==='name'?(a,b)=>(a.name||a.cat).localeCompare(b.name||b.cat,'ko'):so==='cat'?(a,b)=>(CATS.indexOf(a.cat)+1||99)-(CATS.indexOf(b.cat)+1||99)||born(b)-born(a):(a,b)=>born(b)-born(a));
-  const open=i=>card(i,()=>{if(!selMode)return openDlg(i);selIds=toggleSel(selIds,i.id);renderCloset();updateSel()});
+  const open=i=>card(i,()=>{if(!selMode)return openDlg(i);selIds=toggleSel(selIds,i.id);lastSel=selIds.includes(i.id)?i.id:null;renderCloset();updateSel()});
   let nodes;
   if(!list.length&&items.length)nodes=[el('p',{className:'none',textContent:'조건에 맞는 옷이 없어요.'})];
   else if(filter==='전체'&&so==='cat'){          // 전체 + 종류순: 상의 → 하의 → 원피스 → 아우터 → 신발 → 액세서리 묶음으로 나열
@@ -264,6 +265,8 @@ function renderCloset(){
     }
   }else nodes=list.map(open);
   $('#grid').replaceChildren(...nodes);
+  $('#grid').querySelectorAll('.item').forEach((e,i)=>e.style.setProperty('--n',Math.min(i,12)));   // 처음 12장까지 차례로
+  lastSel=null;
   $('#empty').hidden=items.length>0;$('#filter-cat').hidden=!items.length;
 }
 
@@ -337,10 +340,26 @@ $('#form').onsubmit=async e=>{
 };
 $('#btn-del').onclick=async()=>{
   if(!editing||!confirm('이 옷을 삭제할까요?'))return;
-  await del('items',editing.id);
-  await scrubItem(editing.id);
-  $('#dlg').close();await refresh();
+  const id=editing.id;
+  await del('items',id);
+  await scrubItem(id);
+  $('#dlg').close();
+  const gone=[...document.querySelectorAll('#grid .item')].find(e=>e.dataset.id===String(id));
+  if(gone&&!reducedMotion())await gone.animate([{opacity:1,transform:'none'},{opacity:0,transform:'scale(.9)'}],{duration:200,easing:'ease',fill:'forwards'}).finished;
+  await flipGrid(refresh);
 };
+const reducedMotion=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
+// 목록이 바뀔 때 남은 카드가 제자리로 미끄러져 들어가게 (먼저 위치를 재 두고, 바뀐 뒤 옛 위치에서 출발)
+async function flipGrid(change){
+  const first=new Map([...document.querySelectorAll('#grid .item')].map(e=>[e.dataset.id,e.getBoundingClientRect()]));
+  await change();
+  if(reducedMotion())return;
+  document.querySelectorAll('#grid .item').forEach(e=>{
+    const a=first.get(e.dataset.id);if(!a)return;
+    const b=e.getBoundingClientRect(),dx=a.left-b.left,dy=a.top-b.top;
+    if(dx||dy)e.animate([{transform:`translate(${dx}px,${dy}px)`},{transform:'none'}],{duration:320,easing:'cubic-bezier(.3,.9,.3,1)'});
+  });
+}
 
 /* ---------- 코디 추천 ---------- */
 const pick=a=>a[Math.floor(Math.random()*a.length)];
@@ -402,10 +421,15 @@ function recommend(tk=temp,opt={}){
 
 /* ---------- 탭 / 시작 ---------- */
 const TITLES={closet:['MY CLOSET','옷장'],combo:['OUTFITS','코디'],week:['THIS WEEK','주간']};
+const dockBtns=[...document.querySelectorAll('.dock button[data-tab]')];
 document.querySelectorAll('.dock button[data-tab]').forEach(b=>b.onclick=()=>{
   if(selMode)setSel(false);
+  const from=dockBtns.findIndex(x=>x.classList.contains('active')),to=dockBtns.indexOf(b);
+  document.documentElement.style.setProperty('--dir',Math.sign(to-from));   // 새 화면이 들어오는 방향
+  $('.dock').style.setProperty('--i',to);                                 // 하단 탭 선택 표시 위치
   document.querySelectorAll('.dock button[data-tab],.tab').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');$('#tab-'+b.dataset.tab).classList.add('active');if(b.dataset.tab==='week')goToday(todayPos,false);if(b.dataset.tab==='combo')goCombos();
+  if(b.dataset.tab==='closet'){const g=$('#grid');g.classList.remove('stagger');void g.offsetWidth;g.classList.add('stagger');clearTimeout(g._t);g._t=setTimeout(()=>g.classList.remove('stagger'),900)}   // 옷장 카드가 차례로 올라옴
   $('#eyebrow').textContent=TITLES[b.dataset.tab][0];$('#title').textContent=TITLES[b.dataset.tab][1];
   $('#count').hidden=$('#btn-sel').hidden=b.dataset.tab!=='closet';$('#fab').hidden=b.dataset.tab!=='closet';window.scrollTo({top:0});
 });

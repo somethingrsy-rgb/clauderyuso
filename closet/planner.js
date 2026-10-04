@@ -170,16 +170,20 @@ function todaySlides(){
     return{d,label:off===0?'오늘':off===1?'내일':DAY_FULL[d],sub:off<2?`${DAY_FULL[d]} ${md}`:md};
   });
 }
+let todayFx=null;   // 방금 추천으로 바뀐 날: 비어 있었으면 펼쳐지고, 이미 있었으면 교체
 function todaySlide(s){
   const d=s.d,ids=sortIds(planOf(d).ids),open=()=>openPicker({mode:'day',day:d});
-  return el('div',{className:'tslide'},
+  const fx=todayFx&&todayFx.d===d&&ids.length?todayFx:null;if(fx)todayFx=null;
+  const slide=el('div',{className:'tslide'},
     el('div',{className:'wd-head'},el('b',{className:'wd-name',textContent:s.label}),el('span',{className:'wd-date',textContent:s.sub}),tempSel(d)),
     ids.length
-      ?el('button',{type:'button',className:'collage',onclick:open,'aria-label':DAY_FULL[d]+' 옷 바꾸기'},collageImg(ids))
+      ?el('div',{className:'collage-wrap'},el('button',{type:'button',className:'collage'+(fx?(fx.had?' swap-in':' grow-in'):''),onclick:open,'aria-label':DAY_FULL[d]+' 옷 바꾸기'},collageImg(ids)),
+        ...(fx&&fx.had&&fx.old?[el('img',{className:'collage-ghost',src:fx.old,alt:'',onanimationend:e=>e.target.remove()})]:[]))
       :el('div',{className:'today-empty'},el('p',{className:'muted sm',textContent:'아직 정하지 않았어요'}),
         el('button',{type:'button',className:'primary small',textContent:'추천받기',onclick:()=>recommendDay(d)}),miniBtn('직접 고르기',open)),
     ...(ids.length?[el('div',{className:'wd-acts'},miniBtn('바꾸기',open),miniBtn('다시 추천',()=>recommendDay(d)),
       miniBtn('이미지 저장',()=>saveCollage(ids,`${DAY_FULL[d]} 코디`)),miniBtn('비우기',async()=>{await savePlan(d,{ids:[]});renderWeek()},'quiet'))]:[]));
+  slide.dataset.day=d;return slide;
 }
 function goToday(n,smooth=true){   // 카드가 가려져 있으면(폭 0) 탭으로 돌아올 때 app.js가 다시 불러줌
   const tr=$('#today-track');if(tr)tr.scrollTo({left:Math.max(0,Math.min(6,n))*(tr.clientWidth+TGAP),behavior:smooth?'smooth':'instant'});
@@ -219,6 +223,7 @@ async function recommendDay(d,silent){
   [idx-1,idx+1].forEach(k=>{if(DAYS[k])sortIds(planOf(DAYS[k]).ids).forEach(id=>near.add(id))});
   const r=recommend(planOf(d).temp||'mild',{usage,near});
   if(!r){if(!silent)toast('이 날씨에 맞는 상의+하의(또는 원피스)가 부족해요.');return false}
+  todayFx={d,had:sortIds(planOf(d).ids).length>0,old:document.querySelector(`#today .tslide[data-day="${d}"] .collage img`)?.src||null};   // 오늘 카드 전환 연출용
   await savePlan(d,{ids:sortIds(r.map(p=>p.id))});if(!silent)renderWeek();return true;
 }
 let clearArmed=false;

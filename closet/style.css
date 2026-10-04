@@ -23,7 +23,7 @@ h1{margin:2px 0 0;font-size:34px;font-weight:800;letter-spacing:-.03em;line-heig
 .count{font-size:14px;color:var(--muted);padding-bottom:6px}
 .section{margin:30px 22px 12px;font-size:18px;font-weight:700;letter-spacing:-.02em}
 .muted{color:var(--muted)}
-.tab{display:none;padding:10px 0}.tab.active{display:block;animation:in .25s ease}
+.tab{display:none;padding:10px 0}.tab.active{display:block;animation:tabin .28s cubic-bezier(.2,.8,.3,1) backwards}   /* 탭이 이동하는 방향(--dir)에서 밀려 들어옴 */
 @keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
 /* chips */
@@ -38,10 +38,10 @@ h1{margin:2px 0 0;font-size:34px;font-weight:800;letter-spacing:-.03em;line-heig
 @media(min-width:560px){.grid{grid-template-columns:repeat(3,1fr)}}
 @media(min-width:860px){.grid{grid-template-columns:repeat(4,1fr)}}
 .item{border:0;background:none;padding:0;text-align:left;display:block;width:100%;min-width:0}
-.item .ph{display:block;aspect-ratio:3/4;border-radius:var(--r);overflow:hidden;background:var(--photo);position:relative}
+.item .ph{display:block;aspect-ratio:3/4;border-radius:var(--r);overflow:hidden;background:var(--photo);position:relative;transition:transform .15s}
 .item .ph::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1px var(--line);pointer-events:none}   /* 테두리는 사진 위에 얹음 */
 .item img{width:100%;height:100%;object-fit:contain;display:block;transition:transform .35s}   /* 긴 옷도 잘리지 않게 전체를 보여줌 */
-.item:active img{transform:scale(1.03)}
+.item:active .ph{transform:scale(.97)}   /* 누르면 살짝 눌림 */
 .item:focus-visible{outline:2px solid var(--fg);outline-offset:3px;border-radius:var(--r)}
 @media (hover:hover){.item .ph{transition:box-shadow .25s,transform .25s}.item:hover .ph{box-shadow:var(--shadow);transform:translateY(-2px)}.item:hover img{transform:scale(1.04)}}
 .item .meta{display:block;padding:9px 2px 0}
@@ -257,3 +257,28 @@ body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area
 .look-del{position:absolute;right:8px;top:8px;border:0;border-radius:999px;background:#000a;color:#fff;font-size:12px;font-weight:700;padding:6px 11px}
 .look-add{display:grid;place-content:center;justify-items:center;gap:4px;border:1.5px dashed var(--line);background:none;color:var(--muted)}
 .look-add b{color:var(--fg);font-size:15px}.look-add small{font-size:12px}
+
+/* 모션 (움직임과 투명도만 써서 가볍게) */
+@keyframes tabin{from{opacity:0;transform:translateX(calc(var(--dir,0)*28px))}}
+/* 1. 하단 탭: 선택 표시가 탭 사이를 미끄러지고, 눌린 아이콘이 톡 튐 */
+.dock::before{content:"";position:absolute;z-index:-1;left:12px;top:8px;bottom:8px;width:104px;border-radius:999px;background:var(--sunk);transform:translateX(calc(var(--i,0)*110px));transition:transform .32s cubic-bezier(.3,.9,.3,1)}
+.dock button.active svg{animation:pop .4s cubic-bezier(.3,1.6,.5,1)}
+@keyframes pop{from{transform:scale(.8)}60%{transform:scale(1.15)}}
+/* 2. 추천받기: 빈 칸에서 펼쳐지고, 다시 추천하면 이전 콜라주는 위로 사라지고 새 콜라주가 아래에서 올라옴 */
+.collage-wrap{position:relative;width:100%;max-width:340px;margin:0 auto}
+.collage-wrap .collage{max-width:100%}
+.collage-ghost{position:absolute;inset:0;width:100%;height:100%;box-sizing:border-box;border-radius:14px;border:1px solid var(--line);background:#fff;pointer-events:none;animation:ghost-out .4s ease forwards}
+@keyframes ghost-out{to{opacity:0;transform:translateY(-18px) scale(.97)}}
+.collage.swap-in{animation:swap-in .42s cubic-bezier(.2,.8,.3,1) backwards}
+@keyframes swap-in{from{opacity:0;transform:translateY(24px)}}
+.collage.grow-in{animation:grow-in .45s cubic-bezier(.2,.8,.3,1) backwards}
+@keyframes grow-in{from{opacity:0;transform:scale(.92)}}
+/* 3. 옷장: 처음 열 때 위에서부터 차례로 올라옴, 선택 표시가 톡 튐, 선택 바가 올라옴 */
+.grid.stagger .item{animation:rise .42s cubic-bezier(.2,.8,.3,1) backwards;animation-delay:calc(var(--n,0)*30ms)}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}}
+.chk.pop{animation:chk-pop .3s cubic-bezier(.3,1.6,.5,1)}
+@keyframes chk-pop{from{transform:scale(0)}}
+.selbar{animation:bar-in .28s cubic-bezier(.2,.8,.3,1)}
+@keyframes bar-in{from{opacity:0;transform:translateY(16px)}}
+/* 기기에서 '동작 줄이기'를 켠 사람은 움직임을 거의 없앰 (끝 이벤트는 그대로 발생) */
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}}
