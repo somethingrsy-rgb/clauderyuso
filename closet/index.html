@@ -49,11 +49,13 @@
   </section>
 
   <section id="tab-combo" class="tab">
+    <div class="chips" style="padding:0 22px 12px"><button type="button" class="chip" id="f-looks" aria-pressed="false">착용샷 있는 것만</button></div>
     <div id="combo-list" class="combos"></div>
     <div class="row" style="padding:12px 22px 0"><button id="btn-new-combo" class="ghost">＋ 새 코디 만들기</button></div>
   </section>
 </main>
 
+<input type="file" id="look-file" accept="image/*" multiple hidden>
 <div id="selbar" class="selbar" hidden><b id="selcount"></b><span class="spacer"></span><button id="selsave" class="primary small" type="button">코디로 저장</button></div>
 
 <button id="fab" class="fab" aria-label="옷 추가" hidden>
