@@ -130,7 +130,7 @@ select:focus-visible{outline-color:var(--accent)}
 #today{margin:12px 22px 0}#today .wd-name{font-size:26px}
 .today-empty{width:100%;max-width:340px;margin:0 auto;aspect-ratio:3/4;box-sizing:border-box;border:1.5px dashed var(--line);border-radius:14px;display:grid;place-content:center;justify-items:center;gap:10px}.today-empty p{margin:0}   /* 콜라주와 같은 크기의 빈 칸 */
 /* 오늘 카드: 하루씩 옆으로 넘김 */
-.today-track{display:flex;align-items:flex-start;gap:28px;overflow-x:auto;overflow-y:hidden;transition:height .2s;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:none}
+.today-track{display:flex;gap:28px;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:none}
 .today-track::-webkit-scrollbar{display:none}
 .today-track:focus-visible{outline:2px solid var(--fg);outline-offset:4px;border-radius:12px}
 .tslide{flex:0 0 100%;scroll-snap-align:start;display:grid;gap:12px;align-content:start;min-width:0}
@@ -257,10 +257,3 @@ body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area
 .look-del{position:absolute;right:8px;top:8px;border:0;border-radius:999px;background:#000a;color:#fff;font-size:12px;font-weight:700;padding:6px 11px}
 .look-add{display:grid;place-content:center;justify-items:center;gap:4px;border:1.5px dashed var(--line);background:none;color:var(--muted)}
 .look-add b{color:var(--fg);font-size:15px}.look-add small{font-size:12px}
-
-/* 오늘 카드: 콜라주 옆에 저장해 둔 착용샷 */
-.today-pair{display:grid;gap:10px;width:100%;max-width:340px;margin:0 auto}   /* 콜라주 아래에 착용샷을 위아래로 */
-.today-pair .collage{max-width:none;margin:0}
-.look-pair{position:relative;display:block;width:100%;padding:0;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff;aspect-ratio:3/4;box-sizing:border-box}
-.look-pair img{display:block;width:100%;height:100%;object-fit:contain}
-.look-count{position:absolute;right:8px;bottom:8px;background:#000a;color:#fff;border-radius:999px;font-size:12px;font-weight:700;padding:3px 9px}
