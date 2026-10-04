@@ -170,19 +170,12 @@ function todaySlides(){
     return{d,label:off===0?'오늘':off===1?'내일':DAY_FULL[d],sub:off<2?`${DAY_FULL[d]} ${md}`:md};
   });
 }
-// 이 날 옷과 똑같은 구성으로 저장해 둔 코디의 착용샷들
-const looksFor=ids=>{const key=ids.slice().sort().join();return outfits.filter(o=>sortIds(o.ids).slice().sort().join()===key).flatMap(o=>o.looks||[])};
-function lookPair(looks,name){   // 눌러서 다음 사진
-  let k=0;const img=el('img',{src:looks[0],alt:name+' 착용샷'}),count=el('span',{className:'look-count',textContent:`1/${looks.length}`,hidden:looks.length<2});
-  return el('button',{type:'button',className:'look-pair','aria-label':name+' 착용샷'+(looks.length>1?', 눌러서 다음 사진':''),
-    onclick:()=>{k=(k+1)%looks.length;img.src=looks[k];count.textContent=`${k+1}/${looks.length}`}},img,count);
-}
 function todaySlide(s){
-  const d=s.d,ids=sortIds(planOf(d).ids),open=()=>openPicker({mode:'day',day:d}),looks=ids.length?looksFor(ids):[];
+  const d=s.d,ids=sortIds(planOf(d).ids),open=()=>openPicker({mode:'day',day:d});
   return el('div',{className:'tslide'},
     el('div',{className:'wd-head'},el('b',{className:'wd-name',textContent:s.label}),el('span',{className:'wd-date',textContent:s.sub}),tempSel(d)),
     ids.length
-      ?el('div',{className:'today-pair'},el('button',{type:'button',className:'collage',onclick:open,'aria-label':DAY_FULL[d]+' 옷 바꾸기'},collageImg(ids)),...(looks.length?[lookPair(looks,s.label)]:[]))
+      ?el('button',{type:'button',className:'collage',onclick:open,'aria-label':DAY_FULL[d]+' 옷 바꾸기'},collageImg(ids))
       :el('div',{className:'today-empty'},el('p',{className:'muted sm',textContent:'아직 정하지 않았어요'}),
         el('button',{type:'button',className:'primary small',textContent:'추천받기',onclick:()=>recommendDay(d)}),miniBtn('직접 고르기',open)),
     ...(ids.length?[el('div',{className:'wd-acts'},miniBtn('바꾸기',open),miniBtn('다시 추천',()=>recommendDay(d)),
@@ -190,12 +183,10 @@ function todaySlide(s){
 }
 function goToday(n,smooth=true){   // 카드가 가려져 있으면(폭 0) 탭으로 돌아올 때 app.js가 다시 불러줌
   const tr=$('#today-track');if(tr)tr.scrollTo({left:Math.max(0,Math.min(6,n))*(tr.clientWidth+TGAP),behavior:smooth?'smooth':'instant'});
-  markToday();
 }
 function markToday(){
   document.querySelectorAll('#today .tdot').forEach((b,i)=>b.setAttribute('aria-current',i===todayPos));
   const pv=$('#t-prev'),nx=$('#t-next');if(pv)pv.disabled=todayPos===0;if(nx)nx.disabled=todayPos===6;
-  const tr=$('#today-track'),sl=tr&&tr.children[todayPos];if(sl&&tr.clientWidth)tr.style.height=sl.offsetHeight+'px';   // 보고 있는 날의 높이에 맞춤(착용샷이 없는 날은 짧게)
 }
 function renderToday(){
   const box=$('#today');if(!box)return;
