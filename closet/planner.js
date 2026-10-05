@@ -189,7 +189,7 @@ function renderWears(){
   const date=el('input',{type:'date',id:'wear-date',max:today,'aria-label':'기록할 날짜'});
   date.onchange=()=>{if(date.value){wearAdd=false;openPicker({mode:'wear',date:date.value})}};
   const add=wearAdd?el('div',{className:'wl-add'},el('span',{className:'muted sm',textContent:'날짜 선택'}),date):miniBtn('+ 지난 날 기록',()=>{wearAdd=true;renderWears()},'quiet');
-  box.replaceChildren(toggle,...(list.length?list.map(wearRow):[el('p',{className:'muted sm',textContent:'오늘 카드에서 "입었어요"를 누르면 여기에 쌓여요.'})]),el('div',{className:'wl-foot'},add));
+  box.replaceChildren(toggle,...(list.length?list.map(wearRow):[el('p',{className:'muted sm',textContent:'오늘 카드에서 "기록"을 누르면 여기에 쌓여요.'})]),el('div',{className:'wl-foot'},add));
 }
 
 /* ---------- 요일 칸 ---------- */
@@ -249,9 +249,9 @@ function todaySlides(){
     return{d,date,off,label:off===0?'오늘':off===1?'내일':DAY_FULL[d],sub:off<2?`${DAY_FULL[d]} ${md}`:md};
   });
 }
-// 오늘 칸의 '입었어요': 누르면 오늘 날짜로 기록, 기록된 뒤에 다시 누르면 지움
+// 오늘 칸의 '기록': 누르면 오늘 날짜로 기록, 기록된 뒤에 다시 누르면 지움
 const wearBtn=(date,ids)=>{const iso=isoDate(date),rec=wearOf(iso);
-  return el('button',{type:'button',className:'mini-btn'+(rec?' wore':''),textContent:rec?'입었어요 ✓':'입었어요','aria-pressed':!!rec,onclick:()=>rec?unrecordWear(iso):recordWear(iso,ids)})};
+  return el('button',{type:'button',className:'mini-btn'+(rec?' wore':''),textContent:rec?'기록 ✓':'기록','aria-pressed':!!rec,onclick:()=>rec?unrecordWear(iso):recordWear(iso,ids)})};
 let todayFx=null;   // 방금 추천으로 바뀐 날: 비어 있었으면 펼쳐지고, 이미 있었으면 교체
 function todaySlide(s){
   const d=s.d,ids=sortIds(planOf(d).ids),open=()=>openPicker({mode:'day',day:d});
@@ -265,7 +265,7 @@ function todaySlide(s){
         ...(fx&&fx.had&&fx.old?[el('img',{className:'collage-ghost',src:fx.old,alt:'',onanimationend:e=>e.target.remove()})]:[]))
       :el('div',{className:'today-empty'},el('p',{className:'muted sm',textContent:'아직 정하지 않았어요'}),
         el('button',{type:'button',className:'primary small',textContent:'추천받기',onclick:()=>recommendDay(d,s.date)}),miniBtn('직접 고르기',open)),
-    ...(ids.length?[el('div',{className:'wd-acts'},...(s.off===0?[wearBtn(s.date,ids)]:[]),miniBtn('바꾸기',open),miniBtn('다시 추천',()=>recommendDay(d,s.date)),
+    ...(ids.length?[el('div',{className:'wd-acts'},...(s.off===0?[wearBtn(s.date,ids)]:[]),miniBtn('바꾸기',open),miniBtn('추천',()=>recommendDay(d,s.date)),
       miniBtn('코디 저장',()=>saveDayCombo(d)),miniBtn('이미지 저장',()=>saveCollage(ids,`${DAY_FULL[d]} 코디`)),miniBtn('비우기',async()=>{await savePlan(d,{ids:[]});renderWeek()},'quiet'))]:[]));
   slide.dataset.day=d;return slide;
 }
@@ -298,7 +298,7 @@ function dayCard(d,i,date,ti){
   const body=ids.length
     ?el('button',{type:'button',className:'wd-strip',onclick:open,'aria-label':DAY_FULL[d]+' 옷 바꾸기'},...thumbs(ids))
     :el('button',{type:'button',className:'wd-empty',onclick:open,textContent:'＋ 옷 고르기'});
-  const acts=el('div',{className:'wd-acts'},miniBtn('고르기',open),miniBtn('코디 불러오기',()=>openApply(d)),miniBtn('추천',()=>recommendDay(d,date)),
+  const acts=el('div',{className:'wd-acts'},miniBtn('고르기',open),miniBtn('불러오기',()=>openApply(d)),miniBtn('추천',()=>recommendDay(d,date)),
     ...(ids.length?[miniBtn('코디 저장',()=>saveDayCombo(d)),miniBtn('비우기',async()=>{await savePlan(d,{ids:[]});renderWeek()},'quiet')]:[]));
   return el('div',{className:'wd'+(i===ti?' now':'')},head,body,acts);
 }
