@@ -105,6 +105,7 @@ async function drawCollage(ids){
     if(s.it.cat==='하의'&&s.h>1.55*ref.h){                       // 하의 길이는 상의의 1.5배 안팎까지 (폭은 .55배 아래로는 안 줄임)
       const k2=Math.max(1.55*ref.h/s.h,.55*refW/s.w);s.w*=k2;s.h*=k2}
   });
+  flat.forEach(s=>{const k=s.it.scale||1;s.w*=k;s.h*=k});     // 직접 맞춘 크기
   cols.forEach(c=>{c.w=Math.max(...c.items.map(s=>s.w));c.h=c.items.reduce((a,s)=>a+s.h,0)+c.gap*(c.items.length-1)});
   const GAPX=30,W=cols.reduce((a,c)=>a+c.w,0)+GAPX*(cols.length-1),H=Math.max(...cols.map(c=>c.h));
   const f=Math.min(1.5,(CW-48)/W,(CH-48)/H);                // 한 덩어리로 키워서 캔버스를 채움
@@ -119,7 +120,7 @@ async function drawCollage(ids){
   return cv.toDataURL('image/png');
 }
 const colUrl=new Map(),colPending=new Map();
-const colKey=ids=>sortIds(ids).map(id=>id+':'+itemById(id).photo.length).join('|');
+const colKey=ids=>sortIds(ids).map(id=>id+':'+itemById(id).photo.length+'@'+(itemById(id).scale||1)).join('|');
 function collage(ids){
   const k=colKey(ids);
   if(!colPending.has(k)){
@@ -344,8 +345,26 @@ async function pickToggle(id){
   pk.ids=toggleSel(pk.ids,id);renderPicker();                                  // 화면은 바로 바꾸고
   if(pk.mode==='day'){await savePlan(pk.day,{ids:pk.ids});renderWeek()}      // 요일 칸은 누를 때마다 저장
 }
+// 콜라주에서 옷마다 크기를 직접 조절 (옷에 저장돼서 모든 코디에 똑같이 적용)
+const SCALE_MIN=.6,SCALE_MAX=1.6;
+async function setScale(it,v){
+  v=Math.round(Math.min(SCALE_MAX,Math.max(SCALE_MIN,v))*10)/10;
+  it.scale=v===1?undefined:v;await put('items',it);
+  renderSizes();renderWeek();if(typeof renderCombos==='function')renderCombos();
+}
+function renderSizes(){
+  const box=$('#pk-size'),ids=sortIds(pk.ids);box.hidden=!ids.length;if(!ids.length)return;
+  $('#pk-prev').replaceChildren(collageImg(ids));
+  $('#pk-size-list').replaceChildren(...ids.map(id=>{const it=itemById(id),v=it.scale||1;
+    return el('div',{className:'sz-row'},el('span',{className:'sz-nm',textContent:it.name||it.cat}),
+      el('button',{type:'button',className:'sz-b','aria-label':'작게',disabled:v<=SCALE_MIN,textContent:'−',onclick:()=>setScale(it,v-.1)}),
+      el('output',{className:'sz-v',textContent:`${Math.round(v*100)}%`}),
+      el('button',{type:'button',className:'sz-b','aria-label':'크게',disabled:v>=SCALE_MAX,textContent:'+',onclick:()=>setScale(it,v+.1)}),
+      el('button',{type:'button',className:'sz-r',textContent:'자동',disabled:!it.scale,onclick:()=>setScale(it,1)}))}));
+}
 function renderPicker(){
   $('#pk-tags').replaceChildren(...SITUATIONS.map(t=>chip(t,pk.tags.includes(t),()=>{pk.tags=pk.tags.includes(t)?pk.tags.filter(x=>x!==t):[...pk.tags,t];renderPicker()})));
+  renderSizes();
   const sel=$('#pk-sel');
   sel.replaceChildren(...(pk.ids.length?sortIds(pk.ids).map(id=>{const it=itemById(id);
     return el('button',{type:'button',className:'pk-chip',title:'빼기','aria-label':(it.name||it.cat)+' 빼기',onclick:()=>pickToggle(id)},el('img',{src:it.photo,alt:''}),el('i',{textContent:'✕'}))})
