@@ -4,8 +4,18 @@
 const CITIES={서울:[37.5665,126.978],부산:[35.1796,129.0756],인천:[37.4563,126.7052],대구:[35.8714,128.6014],대전:[36.3504,127.3845],광주:[35.1595,126.8526],울산:[35.5384,129.3114],세종:[36.48,127.289],수원:[37.2636,127.0286],제주:[33.4996,126.5312]};
 const isoDate=d=>{const x=new Date(d);return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`};
 // 낮 기온에 더 무게를 둔 체감값으로 단계를 나눔 (앱의 단계: 25°↑ / 15–24° / 5–14° / 5°↓)
-// WMO 날씨 코드 → 이모지
-const wxIcon=(c,pop)=>c==null?(pop>=50?'🌧️':'🌤️'):c===0?'☀️':c<=2?'🌤️':c===3?'☁️':c<=48?'🌫️':c<=67?'🌧️':c<=77?'❄️':c<=82?'🌧️':c<=86?'❄️':'⛈️';
+// WMO 날씨 코드 → 선으로 그린 단순한 아이콘 (SVG)
+const IC={
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/>',
+  cloud:'<path d="M7 18.5h10a3.8 3.8 0 0 0 .4-7.6A5.5 5.5 0 0 0 6.8 9.8 4.4 4.4 0 0 0 7 18.5Z"/>',
+  part:'<path d="M17 3v1.6M21.4 7.4h-1.6M20.1 4.3l-1.1 1.1M13.9 4.3 15 5.4"/><path d="M14.3 8.1a3.6 3.6 0 0 1 5.6 3.6"/><path d="M6.5 20h9a3.5 3.5 0 0 0 .3-7 5 5 0 0 0-9.6 1.2A3 3 0 0 0 6.5 20Z"/>',
+  rain:'<path d="M7 15.5h10a3.8 3.8 0 0 0 .4-7.6A5.5 5.5 0 0 0 6.8 6.8 4.4 4.4 0 0 0 7 15.5Z"/><path d="m9 18.5-.8 2M13 18.5l-.8 2M17 18.5l-.8 2"/>',
+  snow:'<path d="M7 15.5h10a3.8 3.8 0 0 0 .4-7.6A5.5 5.5 0 0 0 6.8 6.8 4.4 4.4 0 0 0 7 15.5Z"/><path d="M9 18.6h.01M13 20.2h.01M17 18.6h.01"/>',
+  fog:'<path d="M4 9h16M6 13h12M8 17h8"/>',
+  storm:'<path d="M7 15.5h10a3.8 3.8 0 0 0 .4-7.6A5.5 5.5 0 0 0 6.8 6.8 4.4 4.4 0 0 0 7 15.5Z"/><path d="m12.5 15.5-2 3h3l-1.5 3"/>'};
+const wxIcon=(c,pop)=>{
+  const k=c==null?(pop>=50?'rain':'part'):c===0?'sun':c<=2?'part':c===3?'cloud':c<=48?'fog':c<=67?'rain':c<=77?'snow':c<=82?'rain':c<=86?'snow':'storm';
+  return `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg>`};
 const tempKey=(max,min)=>{const f=max*.6+min*.4;return f>=25?'hot':f>=15?'mild':f>=5?'cool':'cold'};
 const jget=k=>{try{return JSON.parse(localStorage.getItem(k)||'null')}catch{return null}};
 const jset=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};

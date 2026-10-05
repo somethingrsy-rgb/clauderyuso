@@ -218,7 +218,7 @@ function tempSel(d,date){
 function wxLine(date){
   const w=WX.get(date),b=el('button',{type:'button',className:'wx-line',onclick:openWx});
   if(!WX.loc)b.textContent='날씨를 자동으로 불러오기 ›';
-  else if(w)b.append(el('span',{className:'wx-ic',textContent:wxIcon(w.code,w.pop),'aria-hidden':'true'}),el('b',{textContent:`${w.max}°`}),el('span',{textContent:` ${w.min}°`}),el('span',{className:'wx-city',textContent:` · ${WX.loc.name}`}));
+  else if(w)b.append(el('span',{className:'wx-ic','aria-hidden':'true',innerHTML:wxIcon(w.code,w.pop)}),el('b',{textContent:`${w.max}°`}),el('span',{textContent:` ${w.min}°`}),el('span',{className:'wx-city',textContent:` · ${WX.loc.name}`}));
   else b.textContent=WX.status==='error'?`${WX.loc.name} · 날씨를 못 불러왔어요 ›`:`${WX.loc.name} · 이 날 예보는 아직 없어요 ›`;
   return b;
 }
