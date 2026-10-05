@@ -145,6 +145,49 @@ async function saveCollage(ids,name){
   }catch{toast('이미지를 만들지 못했어요.')}
 }
 
+/* ---------- 입은 기록: 날짜마다 실제로 입은 옷 (계획과는 따로 저장) ---------- */
+const wearOf=iso=>wears.find(w=>w.id===iso);
+const fmtDate=iso=>{const d=new Date(iso+'T00:00:00');return `${d.getMonth()+1}/${d.getDate()} ${DAYS[(d.getDay()+6)%7]}`};
+const recentWorn=n=>{const cut=new Date();cut.setDate(cut.getDate()-n);const s=new Set(),from=isoDate(cut);for(const w of wears)if(w.date>=from)(w.ids||[]).forEach(i=>s.add(i));return s};
+async function recordWear(iso,ids){
+  if(!ids.length)return toast('옷이 비어 있어요. 먼저 코디를 정해 주세요.');
+  await put('wears',{...(wearOf(iso)||{}),id:iso,date:iso,ids:ids.slice()});await refresh();toast('입은 기록을 남겼어요.');
+}
+async function unrecordWear(iso){await del('wears',iso);await refresh();toast('기록을 지웠어요.')}
+let wearTarget=null,wearDateVal=null;
+async function attachWearLook(file){
+  const w=wearOf(wearTarget);if(!w)return;
+  try{const u=await shrinkLook(file);if(!u)return toast('사진이 너무 커서 줄이지 못했어요.');await put('wears',{...w,look:u});await refresh()}
+  catch{toast('사진을 읽지 못했어요.')}
+}
+async function saveWearFromPicker(){
+  const iso=pk.date,old=wearOf(iso);
+  if(pk.ids.length)await put('wears',{...(old||{}),id:iso,date:iso,ids:pk.ids.slice()});else if(old)await del('wears',iso);
+  $('#d-pick').close();await refresh();
+}
+function wearRow(w){
+  const ids=sortIds(w.ids||[]);let armed=false;
+  const del_=miniBtn('삭제',e=>{
+    const b=e.currentTarget;if(!armed){armed=true;b.textContent='한 번 더';setTimeout(()=>{armed=false;b.textContent='삭제'},3000);return}
+    unrecordWear(w.id)},'quiet');
+  return el('div',{className:'wl-item'},
+    el('div',{className:'wl-head'},el('b',{textContent:fmtDate(w.date)}),el('span',{className:'muted sm',textContent:`${ids.length}벌`}),el('span',{className:'sp'}),
+      miniBtn(w.look?'사진 바꾸기':'사진 올리기',()=>{wearTarget=w.id;$('#wear-file').click()},'quiet'),miniBtn('수정',()=>openPicker({mode:'wear',date:w.date}),'quiet'),del_),
+    el('div',{className:'wl-pics'},...(ids.length?[el('div',{className:'wl-pic'},collageImg(ids))]:[]),...(w.look?[el('div',{className:'wl-pic'},el('img',{src:w.look,alt:fmtDate(w.date)+' 착용샷'}))]:[])));
+}
+function renderWears(){
+  const box=$('#wear-log');if(!box)return;
+  const today=isoDate(new Date()),tids=sortIds(planOf(DAYS[todayIdx()]).ids),rec=wearOf(today);
+  if(!wearDateVal){const y=new Date();y.setDate(y.getDate()-1);wearDateVal=isoDate(y)}
+  const list=wears.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10);
+  const date=el('input',{type:'date',id:'wear-date',value:wearDateVal,max:today,'aria-label':'기록할 날짜'});
+  date.onchange=()=>{wearDateVal=date.value||wearDateVal};
+  box.replaceChildren(el('h2',{className:'section',textContent:'입은 기록'}),
+    el('div',{className:'wl-bar'},el('button',{type:'button',className:rec?'primary small':'ghost small',textContent:rec?'오늘 입었어요 ✓':'오늘 입었어요',onclick:()=>rec?unrecordWear(today):recordWear(today,tids)}),
+      date,miniBtn('이 날 기록',()=>{if(date.value)openPicker({mode:'wear',date:date.value})})),
+    ...(list.length?list.map(wearRow):[el('p',{className:'muted sm',textContent:'입은 날 "입었어요"를 누르면 여기에 쌓여요. 옷장에서는 옷마다 입은 횟수를 보고 "오래 안 입은 순"으로도 볼 수 있어요.'})]));
+}
+
 /* ---------- 요일 칸 ---------- */
 function renderWeek(){
   const box=$('#week-grid');if(!box)return;
@@ -155,6 +198,7 @@ function renderWeek(){
   $('#btn-clear-week').hidden=!planned;
   box.replaceChildren(...DAYS.map((d,i)=>dayCard(d,i,dates[i],ti)));
   renderToday();
+  renderWears();
   renderCombos();
 }
 // 그날의 기온 단계: 직접 고른 게 있으면 그것, 아니면 예보, 둘 다 없으면 저장된 값
@@ -199,6 +243,9 @@ function todaySlides(){
     return{d,date,off,label:off===0?'오늘':off===1?'내일':DAY_FULL[d],sub:off<2?`${DAY_FULL[d]} ${md}`:md};
   });
 }
+// 오늘 칸의 '입었어요': 누르면 오늘 날짜로 기록, 기록된 뒤에 다시 누르면 지움
+const wearBtn=(date,ids)=>{const iso=isoDate(date),rec=wearOf(iso);
+  return el('button',{type:'button',className:'mini-btn'+(rec?' wore':''),textContent:rec?'입었어요 ✓':'입었어요','aria-pressed':!!rec,onclick:()=>rec?unrecordWear(iso):recordWear(iso,ids)})};
 let todayFx=null;   // 방금 추천으로 바뀐 날: 비어 있었으면 펼쳐지고, 이미 있었으면 교체
 function todaySlide(s){
   const d=s.d,ids=sortIds(planOf(d).ids),open=()=>openPicker({mode:'day',day:d});
@@ -212,7 +259,7 @@ function todaySlide(s){
         ...(fx&&fx.had&&fx.old?[el('img',{className:'collage-ghost',src:fx.old,alt:'',onanimationend:e=>e.target.remove()})]:[]))
       :el('div',{className:'today-empty'},el('p',{className:'muted sm',textContent:'아직 정하지 않았어요'}),
         el('button',{type:'button',className:'primary small',textContent:'추천받기',onclick:()=>recommendDay(d,s.date)}),miniBtn('직접 고르기',open)),
-    ...(ids.length?[el('div',{className:'wd-acts'},miniBtn('바꾸기',open),miniBtn('다시 추천',()=>recommendDay(d,s.date)),
+    ...(ids.length?[el('div',{className:'wd-acts'},...(s.off===0?[wearBtn(s.date,ids)]:[]),miniBtn('바꾸기',open),miniBtn('다시 추천',()=>recommendDay(d,s.date)),
       miniBtn('이미지 저장',()=>saveCollage(ids,`${DAY_FULL[d]} 코디`)),miniBtn('비우기',async()=>{await savePlan(d,{ids:[]});renderWeek()},'quiet'))]:[]));
   slide.dataset.day=d;return slide;
 }
@@ -253,16 +300,16 @@ async function recommendDay(d,date,silent){
   const usage={},near=new Set(),idx=DAYS.indexOf(d);
   DAYS.forEach(x=>{if(x!==d)sortIds(planOf(x).ids).forEach(id=>{usage[id]=(usage[id]||0)+1})});
   [idx-1,idx+1].forEach(k=>{if(DAYS[k])sortIds(planOf(DAYS[k]).ids).forEach(id=>near.add(id))});
-  const tk=effTemp(d,date),sit=planOf(d).situation;let ids=null;
+  const tk=effTemp(d,date),sit=planOf(d).situation,recent=recentWorn(3);let ids=null;
   if(sit){   // 상황을 골랐으면 그 태그가 붙은 코디 중 날씨(계절)에 맞는 것을 먼저, 이번 주에 덜 쓴 옷으로 된 것 우선
     const t=TEMP[tk],c=outfits.filter(o=>(o.tags||[]).includes(sit)).map(o=>({o,its:sortIds(o.ids).map(itemById)}))
       .filter(x=>x.its.length&&x.its.every(i=>seasonsOf(i).some(s=>t.s.includes(s))))
-      .map(x=>({...x,pen:x.its.reduce((a,i)=>a+(usage[i.id]||0)+(near.has(i.id)?4:0),0)+Math.random()}));
+      .map(x=>({...x,pen:x.its.reduce((a,i)=>a+(usage[i.id]||0)+(near.has(i.id)?4:0)+(recent.has(i.id)?3:0),0)+Math.random()}));
     if(c.length)ids=sortIds(c.sort((a,b)=>a.pen-b.pen)[0].o.ids);
     else if(!silent)toast(`'${sit}' 코디 중 이 날씨에 맞는 게 없어서 새로 추천했어요.`,3500);
   }
   if(!ids){
-    const r=recommend(tk,{usage,near});
+    const r=recommend(tk,{usage,near,recent});
     if(!r){if(!silent)toast('이 날씨에 맞는 상의+하의(또는 원피스)가 부족해요.');return false}
     ids=sortIds(r.map(p=>p.id));
   }
@@ -280,11 +327,11 @@ async function clearWeek(btn){
 /* ---------- 옷 고르기 (요일 칸 / 코디 공용) ---------- */
 const pk={mode:'day',day:null,comboId:null,ids:[],cat:'상의'};
 function openPicker(o){
-  pk.mode=o.mode;pk.day=o.day||null;pk.comboId=o.comboId||null;
+  pk.mode=o.mode;pk.day=o.day||null;pk.comboId=o.comboId||null;pk.date=o.date||null;
   const combo=o.comboId?outfits.find(x=>x.id===o.comboId):null;
-  pk.ids=o.mode==='day'?sortIds(planOf(o.day).ids):sortIds(combo?combo.ids:o.ids||[]);   // 옷장에서 고른 옷으로 시작할 수도 있음
+  pk.ids=o.mode==='day'?sortIds(planOf(o.day).ids):o.mode==='wear'?sortIds((wearOf(o.date)||{ids:planOf(DAYS[(new Date(o.date+'T00:00:00').getDay()+6)%7]).ids}).ids):sortIds(combo?combo.ids:o.ids||[]);   // 기록하는 날 계획이 있으면 그걸로 시작   // 옷장에서 고른 옷으로 시작할 수도 있음
   pk.cat=CATS.find(c=>items.some(i=>i.cat===c))||CATS[0];
-  $('#pk-title').textContent=o.mode==='day'?`${DAY_FULL[o.day]} 옷 고르기`:(combo?'코디 수정':'새 코디 만들기');
+  $('#pk-title').textContent=o.mode==='day'?`${DAY_FULL[o.day]} 옷 고르기`:o.mode==='wear'?`${fmtDate(o.date)} 입은 옷`:(combo?'코디 수정':'새 코디 만들기');
   $('#pk-name-wrap').hidden=$('#pk-tags-wrap').hidden=o.mode!=='combo';$('#pk-name').value=combo?.name||'';pk.tags=combo&&combo.tags?[...combo.tags]:[];
   renderPicker();$('#d-pick').showModal();$('#d-pick').scrollTop=0;
 }
@@ -312,6 +359,9 @@ function renderPicker(){
     $('#pk-save-btn').disabled=!pk.ids.length;
     acts.replaceChildren(miniBtn('비우기',async()=>{pk.ids=[];await savePlan(pk.day,{ids:[]});renderWeek();renderPicker()},'quiet'),
       el('button',{type:'button',className:'primary',textContent:'완료',onclick:()=>$('#d-pick').close()}));
+  }else if(pk.mode==='wear'){
+    save.hidden=true;
+    acts.replaceChildren(el('span',{className:'spacer'}),el('button',{type:'button',className:'primary',textContent:'기록',onclick:saveWearFromPicker}));
   }else{
     save.hidden=true;
     const combo=outfits.find(x=>x.id===pk.comboId);
@@ -431,6 +481,7 @@ function openApply(day){
 async function scrubItem(id){
   for(const o of outfits.slice())if(o.ids.includes(id)){const ids=o.ids.filter(x=>x!==id);if(ids.length)await put('outfits',{...o,ids});else await del('outfits',o.id)}
   for(const d of DAYS){const p=plans[d];if(p&&p.ids.includes(id))await savePlan(d,{ids:p.ids.filter(x=>x!==id)})}
+  for(const w of wears.slice())if((w.ids||[]).includes(id)){const ids=w.ids.filter(x=>x!==id);if(ids.length)await put('wears',{...w,ids});else await del('wears',w.id)}
 }
 
 function initPlanner(){
@@ -443,6 +494,7 @@ function initPlanner(){
   }
   $('#d-pick').addEventListener('close',()=>refresh());
   WX.onChange=()=>renderWeek();
+  $('#wear-file').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(f)await attachWearLook(f)};
   $('#f-looks').onclick=()=>{onlyLooks=!onlyLooks;renderCombos()};
   $('#look-file').onchange=async e=>{const fs=[...e.target.files];e.target.value='';if(fs.length)await addLooks(fs)};
   renderWeek();

@@ -11,8 +11,8 @@ const el=(t,p={},...k)=>{const e=Object.assign(document.createElement(t),p);k.fo
 
 /* ---------- IndexedDB ---------- */
 let db;
-const open=()=>new Promise((res,rej)=>{const r=indexedDB.open('closet',2);
-  r.onupgradeneeded=()=>{const d=r.result;for(const s of ['items','outfits','plans'])if(!d.objectStoreNames.contains(s))d.createObjectStore(s,{keyPath:'id',autoIncrement:true})};
+const open=()=>new Promise((res,rej)=>{const r=indexedDB.open('closet',3);
+  r.onupgradeneeded=()=>{const d=r.result;for(const s of ['items','outfits','plans','wears'])if(!d.objectStoreNames.contains(s))d.createObjectStore(s,{keyPath:'id',autoIncrement:true})};
   r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
 const tx=(s,m,fn)=>new Promise((res,rej)=>{const t=db.transaction(s,m);const r=fn(t.objectStore(s));t.oncomplete=()=>res(r.result);t.onerror=()=>rej(t.error)});
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2,10));
@@ -61,7 +61,7 @@ async function uploadAll(){
   if(!cloud.user||cloud.uploading)return;
   cloud.uploading=true;renderAcct();
   let ok=0,fail=0;
-  outer:for(const s of ['items','outfits','plans'])for(const v of await all(s)){if(await cloudSet(s,v))ok++;else{fail++;break outer}}
+  outer:for(const s of ['items','outfits','plans','wears'])for(const v of await all(s)){if(await cloudSet(s,v))ok++;else{fail++;break outer}}
   cloud.uploading=false;renderAcct();
   toast(fail?`${ok}개 올리고 멈췄어요. 연결 상태를 확인해 주세요.`:ok?`${ok}개를 클라우드에 올렸어요.`:'올릴 옷이 없어요.',5000);
 }
@@ -95,7 +95,7 @@ function listen(name){
     }catch(e){console.error(e)}
   },e=>{cloud.error=e.code||e.message;toast(e.code==='permission-denied'?'저장 권한이 없어요. Firestore 보안 규칙을 확인해 주세요.':'동기화 오류: '+cloud.error);renderAcct()});
 }
-function startSync(){stopSync();cloud.startedAt=Date.now();cloud.serverSeen=false;cloud.counts={};cloud.unsubs=['items','outfits','plans'].map(listen)}
+function startSync(){stopSync();cloud.startedAt=Date.now();cloud.serverSeen=false;cloud.counts={};cloud.unsubs=['items','outfits','plans','wears'].map(listen)}
 function stopSync(){cloud.unsubs.forEach(u=>u());cloud.unsubs=[];cloud.pending=false;cloud.fromCache=false;cloud.error=''}
 
 async function signIn(){
@@ -160,12 +160,14 @@ function initCloud(){
 }
 
 /* ---------- 상태 ---------- */
-let items=[],outfits=[],filter='전체',editing=null,photoData=null,current=null;
+let items=[],outfits=[],wears=[],wearInfo=new Map(),filter='전체',editing=null,photoData=null,current=null;
 let selCat=CATS[0],selColor='검정',temp='mild';
 const TEMP_LABEL={hot:['더워요','25°↑'],mild:['적당해요','15–24°'],cool:['쌀쌀해요','5–14°'],cold:['추워요','5°↓']};
 
 async function refresh(){
-  items=await all('items');outfits=await all('outfits');
+  items=await all('items');outfits=await all('outfits');wears=await all('wears');
+  wearInfo=new Map();   // 옷마다 입은 횟수와 마지막으로 입은 날
+  for(const w of wears)for(const id of w.ids||[]){const e=wearInfo.get(id)||{n:0,last:''};e.n++;if(w.date>e.last)e.last=w.date;wearInfo.set(id,e)}
   plans=Object.fromEntries((await all('plans')).map(p=>[p.day,p]));
   renderCloset();renderWeek();
   $('#count').textContent=items.length?`총 ${items.length}벌`:'';
@@ -239,7 +241,7 @@ function card(it,onclick){
   const on=selMode&&selIds.includes(it.id),b=el('button',{className:'item'+(on?' sel':''),type:'button',onclick});
   b.dataset.id=it.id;
   b.append(el('span',{className:'ph'},el('img',{src:it.photo,alt:it.name,loading:'lazy'}),...(on?[el('span',{className:'chk'+(it.id===lastSel?' pop':''),textContent:'✓'})]:[])),
-    el('span',{className:'meta'},el('b',{textContent:it.name||it.cat}),el('small',{},dot(it.color),`${it.color} · ${it.cat}`)));
+    el('span',{className:'meta'},el('b',{textContent:it.name||it.cat}),el('small',{},dot(it.color),`${it.color} · ${it.cat}${wearInfo.has(it.id)?` · ${wearInfo.get(it.id).n}회 입음`:''}`)));
   return b}
 // 옷장에서 여러 벌을 눌러 골라 코디로 저장 (종류별 한 벌 규칙은 코디 만들기와 같음)
 let selMode=false,selIds=[],lastSel=null;   // lastSel: 방금 고른 옷만 체크 표시가 톡 튀게
@@ -253,7 +255,7 @@ function renderCloset(){
   const f=$('#filter-cat');f.replaceChildren(...['전체',...CATS].map(c=>chip(`${c} ${c==='전체'?items.length:items.filter(i=>i.cat===c).length}`,c===filter,()=>{filter=c;renderCloset()})));
   const q=$('#q').value.trim().toLowerCase(),so=$('#sort').value;
   const list=items.filter(i=>(filter==='전체'||i.cat===filter)&&(!q||[i.name,i.cat,i.color].join(' ').toLowerCase().includes(q)))
-    .sort(so==='name'?(a,b)=>(a.name||a.cat).localeCompare(b.name||b.cat,'ko'):so==='cat'?(a,b)=>(CATS.indexOf(a.cat)+1||99)-(CATS.indexOf(b.cat)+1||99)||born(b)-born(a):(a,b)=>born(b)-born(a));
+    .sort(so==='name'?(a,b)=>(a.name||a.cat).localeCompare(b.name||b.cat,'ko'):so==='worn'?(a,b)=>((wearInfo.get(b.id)||{n:0}).n-(wearInfo.get(a.id)||{n:0}).n)||born(b)-born(a):so==='idle'?(a,b)=>((wearInfo.get(a.id)||{last:''}).last).localeCompare((wearInfo.get(b.id)||{last:''}).last)||born(a)-born(b):so==='cat'?(a,b)=>(CATS.indexOf(a.cat)+1||99)-(CATS.indexOf(b.cat)+1||99)||born(b)-born(a):(a,b)=>born(b)-born(a));
   const open=i=>card(i,()=>{if(!selMode)return openDlg(i);selIds=toggleSel(selIds,i.id);lastSel=selIds.includes(i.id)?i.id:null;renderCloset();updateSel()});
   let nodes;
   if(!list.length&&items.length)nodes=[el('p',{className:'none',textContent:'조건에 맞는 옷이 없어요.'})];
@@ -407,7 +409,7 @@ function recommend(tk=temp,opt={}){
   dresses.forEach(d=>bases.push([d]));
   if(!bases.length)return null;
   // 일주일 코디에서는 이미 입은 옷, 전날/다음날과 겹치는 옷에 감점
-  const repeat=parts=>parts.reduce((a,p)=>{const w=(p.cat==='신발'||p.cat==='액세서리')?.5:1.4;return a+w*(usage[p.id]||0)+(w>1&&near.has(p.id)?4:0)},0);
+  const repeat=parts=>parts.reduce((a,p)=>{const w=(p.cat==='신발'||p.cat==='액세서리')?.5:1.4;return a+w*(usage[p.id]||0)+(w>1&&near.has(p.id)?4:0)+(w>1&&opt.recent&&opt.recent.has(p.id)?3:0)},0);
   let best=null,bs=-Infinity;
   for(let n=0;n<200;n++){
     const parts=[...pick(bases)];

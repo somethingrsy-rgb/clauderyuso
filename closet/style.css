@@ -288,3 +288,15 @@ body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area
 @keyframes bar-in{from{opacity:0;transform:translateY(16px)}}
 /* 기기에서 '동작 줄이기'를 켠 사람은 움직임을 거의 없앰 (끝 이벤트는 그대로 발생) */
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}}
+
+/* 입은 기록 */
+.mini-btn.wore{background:var(--accent);color:var(--on-accent)}
+.wear-log{margin:0 22px;display:grid;gap:10px}
+.wear-log .section{margin:30px 0 2px}
+.wl-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.wl-bar input[type=date]{flex:1;min-width:130px;max-width:170px;padding:8px 10px;font-size:13px;border-radius:10px}
+.wl-item{background:var(--surface);border-radius:18px;padding:12px;box-shadow:0 0 0 1px var(--line);display:grid;gap:10px;min-width:0}
+.wl-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.wl-head b{font-size:16px;letter-spacing:-.02em}.wl-head .sp{flex:1}
+.wl-pics{display:flex;gap:8px}
+.wl-pic{width:96px;aspect-ratio:3/4;box-sizing:border-box;border-radius:12px;border:1px solid var(--line);background:#fff;overflow:hidden;flex:none}
+.wl-pic img{display:block;width:100%;height:100%;object-fit:contain}
