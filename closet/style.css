@@ -303,6 +303,6 @@ body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area
 .wl-row b{font-size:14px;letter-spacing:-.02em}
 .wl-thumb{width:32px;aspect-ratio:3/4;border-radius:6px;border:1px solid var(--line);background:#fff;overflow:hidden;flex:none;display:block}
 .wl-thumb img{display:block;width:100%;height:100%;object-fit:contain}
-.wl-acts{display:flex;gap:6px;padding:0 10px 8px;justify-content:flex-end}
+.wl-acts{display:flex;flex-wrap:wrap;gap:6px;padding:0 10px 8px;justify-content:flex-end}
 .wl-foot{display:flex;justify-content:flex-end}.wl-add{display:flex;align-items:center;gap:8px}
 .wl-add input[type=date]{padding:6px 10px;font-size:13px;border-radius:10px}

@@ -175,7 +175,7 @@ function wearRow(w){
     el('b',{textContent:fmtDate(w.date)}),el('span',{className:'muted sm',textContent:`${ids.length}벌`}),el('span',{className:'sp'}),
     el('span',{className:'wl-thumb'},collageImg(ids)),...(w.look?[el('span',{className:'wl-thumb'},el('img',{src:w.look,alt:'착용샷'}))]:[]));
   return el('div',{className:'wl-item'+(on?' on':'')},head,
-    ...(on?[el('div',{className:'wl-acts'},miniBtn(w.look?'사진 바꾸기':'사진 올리기',()=>{wearTarget=w.id;$('#wear-file').click()},'quiet'),miniBtn('수정',()=>openPicker({mode:'wear',date:w.date}),'quiet'),del_)]:[]));
+    ...(on?[el('div',{className:'wl-acts'},miniBtn('사진 보관함',()=>{wearTarget=w.id;$('#wear-file').click()},'quiet'),miniBtn('사진 찍기',()=>{wearTarget=w.id;$('#wear-cam').click()},'quiet'),miniBtn('수정',()=>openPicker({mode:'wear',date:w.date}),'quiet'),del_)]:[]));
 }
 function renderWears(){
   const box=$('#wear-log');if(!box)return;
@@ -499,7 +499,7 @@ function initPlanner(){
   }
   $('#d-pick').addEventListener('close',()=>refresh());
   WX.onChange=()=>renderWeek();
-  $('#wear-file').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(f)await attachWearLook(f)};
+  for(const id of ['#wear-file','#wear-cam'])$(id).onchange=async e=>{const f=e.target.files[0];e.target.value='';if(f)await attachWearLook(f)};
   $('#f-looks').onclick=()=>{onlyLooks=!onlyLooks;renderCombos()};
   $('#look-file').onchange=async e=>{const fs=[...e.target.files];e.target.value='';if(fs.length)await addLooks(fs)};
   renderWeek();
