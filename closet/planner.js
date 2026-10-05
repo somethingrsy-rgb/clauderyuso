@@ -339,6 +339,7 @@ function openPicker(o){
   pk.cat=CATS.find(c=>items.some(i=>i.cat===c))||CATS[0];
   $('#pk-title').textContent=o.mode==='day'?`${DAY_FULL[o.day]} 옷 고르기`:o.mode==='wear'?`${fmtDate(o.date)} 입은 옷`:(combo?'코디 수정':'새 코디 만들기');
   $('#pk-name-wrap').hidden=$('#pk-tags-wrap').hidden=o.mode!=='combo';$('#pk-name').value=combo?.name||'';pk.tags=combo&&combo.tags?[...combo.tags]:[];
+  $('#pk-size').open=false;      // 열 때마다 크기 조절은 접힌 상태로
   renderPicker();$('#d-pick').showModal();$('#d-pick').scrollTop=0;
 }
 async function pickToggle(id){
