@@ -4,6 +4,8 @@
    - app.js보다 먼저 불러오고, 화면 연결은 app.js가 initPlanner()를 불러서 해요. */
 const DAYS=['월','화','수','목','금','토','일'];
 const DAY_FULL={월:'월요일',화:'화요일',수:'수요일',목:'목요일',금:'금요일',토:'토요일',일:'일요일'};
+const SITUATIONS=['출근','데이트','모임','운동','여행'];   // 코디에 붙이는 상황 태그
+const seasonsOf=i=>i.seasons&&i.seasons.length?i.seasons:SEASONS;   // 계절을 안 정한 옷은 사계절용
 let plans={};                                   // 요일 → {id:'plan-월', day, ids:[], temp}
 const itemById=id=>items.find(i=>i.id===id);
 const sortIds=ids=>(ids||[]).filter(itemById).sort((a,b)=>CATS.indexOf(itemById(a).cat)-CATS.indexOf(itemById(b).cat));
@@ -172,6 +174,9 @@ function wxLine(date){
     :WX.status==='error'?`${WX.loc.name} · 날씨를 못 불러왔어요 ›`:`${WX.loc.name} · 이 날 예보는 아직 없어요 ›`;
   return b;
 }
+// 오늘 카드의 상황 고르기 (그날 계획에 저장, 추천이 그 상황의 코디를 먼저 고름)
+const sitRow=d=>el('div',{className:'sit-row'},...SITUATIONS.map(t=>{const on=planOf(d).situation===t;
+  return el('button',{type:'button',className:'chip'+(on?' on':''),textContent:t,'aria-pressed':on,onclick:async()=>{await savePlan(d,{situation:on?'':t});renderWeek()}})}));
 function openWx(){
   const box=$('#wx-body'),here=el('button',{type:'button',className:'primary small',textContent:'현재 위치로 설정',onclick:async e=>{
     e.currentTarget.disabled=true;
@@ -201,6 +206,7 @@ function todaySlide(s){
   const slide=el('div',{className:'tslide'},
     el('div',{className:'wd-head'},el('b',{className:'wd-name',textContent:s.label}),el('span',{className:'wd-date',textContent:s.sub}),tempSel(d,s.date)),
     wxLine(s.date),
+    sitRow(d),
     ids.length
       ?el('div',{className:'collage-wrap'},el('button',{type:'button',className:'collage'+(fx?(fx.had?' swap-in':' grow-in'):''),onclick:open,'aria-label':DAY_FULL[d]+' 옷 바꾸기'},collageImg(ids)),
         ...(fx&&fx.had&&fx.old?[el('img',{className:'collage-ghost',src:fx.old,alt:'',onanimationend:e=>e.target.remove()})]:[]))
@@ -233,6 +239,7 @@ function dayCard(d,i,date,ti){
   const p=planOf(d),ids=sortIds(p.ids);
   const sel=tempSel(d,date);
   const head=el('div',{className:'wd-head'},el('b',{className:'wd-name',textContent:d}),el('span',{className:'wd-date',textContent:`${date.getMonth()+1}/${date.getDate()}`}),
+    ...(p.situation?[el('span',{className:'sit-tag',textContent:p.situation})]:[]),
     ...(i===ti?[el('span',{className:'today',textContent:'오늘'})]:[]),sel);
   const open=()=>openPicker({mode:'day',day:d});
   const body=ids.length
@@ -246,10 +253,21 @@ async function recommendDay(d,date,silent){
   const usage={},near=new Set(),idx=DAYS.indexOf(d);
   DAYS.forEach(x=>{if(x!==d)sortIds(planOf(x).ids).forEach(id=>{usage[id]=(usage[id]||0)+1})});
   [idx-1,idx+1].forEach(k=>{if(DAYS[k])sortIds(planOf(DAYS[k]).ids).forEach(id=>near.add(id))});
-  const r=recommend(effTemp(d,date),{usage,near});
-  if(!r){if(!silent)toast('이 날씨에 맞는 상의+하의(또는 원피스)가 부족해요.');return false}
+  const tk=effTemp(d,date),sit=planOf(d).situation;let ids=null;
+  if(sit){   // 상황을 골랐으면 그 태그가 붙은 코디 중 날씨(계절)에 맞는 것을 먼저, 이번 주에 덜 쓴 옷으로 된 것 우선
+    const t=TEMP[tk],c=outfits.filter(o=>(o.tags||[]).includes(sit)).map(o=>({o,its:sortIds(o.ids).map(itemById)}))
+      .filter(x=>x.its.length&&x.its.every(i=>seasonsOf(i).some(s=>t.s.includes(s))))
+      .map(x=>({...x,pen:x.its.reduce((a,i)=>a+(usage[i.id]||0)+(near.has(i.id)?4:0),0)+Math.random()}));
+    if(c.length)ids=sortIds(c.sort((a,b)=>a.pen-b.pen)[0].o.ids);
+    else if(!silent)toast(`'${sit}' 코디 중 이 날씨에 맞는 게 없어서 새로 추천했어요.`,3500);
+  }
+  if(!ids){
+    const r=recommend(tk,{usage,near});
+    if(!r){if(!silent)toast('이 날씨에 맞는 상의+하의(또는 원피스)가 부족해요.');return false}
+    ids=sortIds(r.map(p=>p.id));
+  }
   todayFx={d,had:sortIds(planOf(d).ids).length>0,old:document.querySelector(`#today .tslide[data-day="${d}"] .collage img`)?.src||null};   // 오늘 카드 전환 연출용
-  await savePlan(d,{ids:sortIds(r.map(p=>p.id))});if(!silent)renderWeek();return true;
+  await savePlan(d,{ids});if(!silent)renderWeek();return true;
 }
 let clearArmed=false;
 async function clearWeek(btn){
@@ -267,7 +285,7 @@ function openPicker(o){
   pk.ids=o.mode==='day'?sortIds(planOf(o.day).ids):sortIds(combo?combo.ids:o.ids||[]);   // 옷장에서 고른 옷으로 시작할 수도 있음
   pk.cat=CATS.find(c=>items.some(i=>i.cat===c))||CATS[0];
   $('#pk-title').textContent=o.mode==='day'?`${DAY_FULL[o.day]} 옷 고르기`:(combo?'코디 수정':'새 코디 만들기');
-  $('#pk-name-wrap').hidden=o.mode!=='combo';$('#pk-name').value=combo?.name||'';
+  $('#pk-name-wrap').hidden=$('#pk-tags-wrap').hidden=o.mode!=='combo';$('#pk-name').value=combo?.name||'';pk.tags=combo&&combo.tags?[...combo.tags]:[];
   renderPicker();$('#d-pick').showModal();$('#d-pick').scrollTop=0;
 }
 async function pickToggle(id){
@@ -275,6 +293,7 @@ async function pickToggle(id){
   if(pk.mode==='day'){await savePlan(pk.day,{ids:pk.ids});renderWeek()}      // 요일 칸은 누를 때마다 저장
 }
 function renderPicker(){
+  $('#pk-tags').replaceChildren(...SITUATIONS.map(t=>chip(t,pk.tags.includes(t),()=>{pk.tags=pk.tags.includes(t)?pk.tags.filter(x=>x!==t):[...pk.tags,t];renderPicker()})));
   const sel=$('#pk-sel');
   sel.replaceChildren(...(pk.ids.length?sortIds(pk.ids).map(id=>{const it=itemById(id);
     return el('button',{type:'button',className:'pk-chip',title:'빼기','aria-label':(it.name||it.cat)+' 빼기',onclick:()=>pickToggle(id)},el('img',{src:it.photo,alt:''}),el('i',{textContent:'✕'}))})
@@ -304,13 +323,14 @@ function renderPicker(){
 async function saveComboFromPicker(){
   if(!pk.ids.length)return;
   const combo=outfits.find(x=>x.id===pk.comboId),name=$('#pk-name').value.trim()||combo?.name||`코디 ${outfits.length+1}`;
-  await put('outfits',{...(combo||{at:Date.now(),uses:0}),ids:pk.ids,name});
+  await put('outfits',{...(combo||{at:Date.now(),uses:0}),ids:pk.ids,name,tags:pk.tags});
   $('#d-pick').close();await refresh();toast('코디에 저장했어요.');
 }
 async function registerFromDay(){
   if(!pk.ids.length)return;
   const name=$('#pk-combo-name').value.trim()||`${pk.day}요일 코디`;
-  await put('outfits',{ids:pk.ids.slice(),name,at:Date.now(),uses:0});
+  const sit=planOf(pk.day).situation;
+  await put('outfits',{ids:pk.ids.slice(),name,at:Date.now(),uses:0,tags:sit?[sit]:[]});   // 그날 고른 상황이 있으면 그대로 태그로
   $('#pk-combo-name').value='';await refresh();toast(`"${name}"을(를) 코디에 등록했어요.`);
 }
 
@@ -322,13 +342,16 @@ async function applyCombo(o,day){
 }
 const comboName=o=>o.name||`코디 ${outfits.indexOf(o)+1}`;
 // 코디 카드의 큰 이미지: 콜라주 → 올려 둔 착용샷(최대 3장) → 올리기 칸을 옆으로 넘김
-const MAX_LOOKS=3,LGAP=16;let onlyLooks=false,lookTarget=null;const comboPos={};
+const MAX_LOOKS=3,LGAP=16;let onlyLooks=false,lookTarget=null,comboTag=null;const comboPos={};
 function renderCombos(){
   const box=$('#combo-list');if(!box)return;
   const withLooks=outfits.filter(o=>(o.looks||[]).length);
   const f=$('#f-looks');f.classList.toggle('on',onlyLooks);f.setAttribute('aria-pressed',onlyLooks);f.textContent=`착용샷 있는 것만 · ${withLooks.length}`;
-  const list=(onlyLooks?withLooks:outfits).slice().sort((a,b)=>(b.uses||0)-(a.uses||0)||(b.at||0)-(a.at||0));
-  const none=onlyLooks&&outfits.length?'착용샷을 올린 코디가 아직 없어요.':'아직 등록한 코디가 없어요. 자주 입는 차림을 코디로 만들어 두면 어느 요일에든 한 번에 넣을 수 있어요.';
+  const tagN=Object.fromEntries(SITUATIONS.map(t=>[t,outfits.filter(o=>(o.tags||[]).includes(t)).length]));
+  if(comboTag&&!tagN[comboTag])comboTag=null;
+  $('#f-tags').replaceChildren(...SITUATIONS.filter(t=>tagN[t]).map(t=>chip(`${t} · ${tagN[t]}`,comboTag===t,()=>{comboTag=comboTag===t?null:t;renderCombos()})));
+  const list=(onlyLooks?withLooks:outfits).filter(o=>!comboTag||(o.tags||[]).includes(comboTag)).sort((a,b)=>(b.uses||0)-(a.uses||0)||(b.at||0)-(a.at||0));
+  const none=(onlyLooks||comboTag)&&outfits.length?'조건에 맞는 코디가 아직 없어요.':'아직 등록한 코디가 없어요. 자주 입는 차림을 코디로 만들어 두면 어느 요일에든 한 번에 넣을 수 있어요.';
   box.replaceChildren(...(list.length?list.map(comboCard):[el('p',{className:'muted sm',style:'padding:0 22px;margin:0',textContent:none})]));
   goCombos();
 }
@@ -367,6 +390,7 @@ function comboCard(o){
   return el('div',{className:'combo'},
     el('div',{className:'combo-head'},el('b',{textContent:comboName(o)}),el('small',{className:'muted',textContent:o.uses?`${o.uses}회 사용`:'아직 안 썼어요'}),
       miniBtn('수정',()=>openPicker({mode:'combo',comboId:o.id}),'quiet'),miniBtn('저장',()=>saveCollage(ids,comboName(o)),'quiet')),
+    ...((o.tags||[]).length?[el('div',{className:'tags'},...o.tags.map(t=>el('span',{className:'sit-tag',textContent:t})))]:[]),
     looksSlider(o,ids),
     el('div',{className:'combo-days'},el('span',{className:'lbl',textContent:'넣기'}),...DAYS.map(d=>el('button',{type:'button',className:'dbtn',textContent:d,'aria-label':DAY_FULL[d]+'에 넣기',disabled:!ids.length,onclick:()=>applyCombo(o,d)}))));
 }
