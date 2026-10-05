@@ -266,7 +266,7 @@ function todaySlide(s){
       :el('div',{className:'today-empty'},el('p',{className:'muted sm',textContent:'아직 정하지 않았어요'}),
         el('button',{type:'button',className:'primary small',textContent:'추천받기',onclick:()=>recommendDay(d,s.date)}),miniBtn('직접 고르기',open)),
     ...(ids.length?[el('div',{className:'wd-acts'},...(s.off===0?[wearBtn(s.date,ids)]:[]),miniBtn('바꾸기',open),miniBtn('다시 추천',()=>recommendDay(d,s.date)),
-      miniBtn('이미지 저장',()=>saveCollage(ids,`${DAY_FULL[d]} 코디`)),miniBtn('비우기',async()=>{await savePlan(d,{ids:[]});renderWeek()},'quiet'))]:[]));
+      miniBtn('코디 저장',()=>saveDayCombo(d)),miniBtn('이미지 저장',()=>saveCollage(ids,`${DAY_FULL[d]} 코디`)),miniBtn('비우기',async()=>{await savePlan(d,{ids:[]});renderWeek()},'quiet'))]:[]));
   slide.dataset.day=d;return slide;
 }
 function goToday(n,smooth=true){   // 카드가 가려져 있으면(폭 0) 탭으로 돌아올 때 app.js가 다시 불러줌
@@ -299,7 +299,7 @@ function dayCard(d,i,date,ti){
     ?el('button',{type:'button',className:'wd-strip',onclick:open,'aria-label':DAY_FULL[d]+' 옷 바꾸기'},...thumbs(ids))
     :el('button',{type:'button',className:'wd-empty',onclick:open,textContent:'＋ 옷 고르기'});
   const acts=el('div',{className:'wd-acts'},miniBtn('고르기',open),miniBtn('코디 불러오기',()=>openApply(d)),miniBtn('추천',()=>recommendDay(d,date)),
-    ...(ids.length?[miniBtn('비우기',async()=>{await savePlan(d,{ids:[]});renderWeek()},'quiet')]:[]));
+    ...(ids.length?[miniBtn('코디 저장',()=>saveDayCombo(d)),miniBtn('비우기',async()=>{await savePlan(d,{ids:[]});renderWeek()},'quiet')]:[]));
   return el('div',{className:'wd'+(i===ti?' now':'')},head,body,acts);
 }
 async function recommendDay(d,date,silent){
@@ -391,15 +391,30 @@ function renderPicker(){
     save.hidden=true;
     const combo=outfits.find(x=>x.id===pk.comboId);
     acts.replaceChildren(...(combo?[el('button',{type:'button',className:'danger small',textContent:'삭제',onclick:async()=>{await del('outfits',combo.id);$('#d-pick').close();await refresh()}})]:[]),
-      el('span',{className:'spacer'}),
+      el('span',{className:'spacer'}),miniBtn('추천',pickRecommend),
       el('button',{type:'button',className:'primary',textContent:'저장',disabled:!pk.ids.length,onclick:saveComboFromPicker}));
   }
+}
+// 새 코디 / 코디 수정 창에서 추천: 오늘 날씨에 맞게, 최근에 입은 옷은 덜 고름. 누를 때마다 다른 조합
+function pickRecommend(){
+  const tk=effTemp(DAYS[todayIdx()],new Date()),r=recommend(tk,{usage:{},near:new Set(),recent:recentWorn(3)});
+  if(!r)return toast('이 날씨에 맞는 상의+하의(또는 원피스)가 부족해요.');
+  pk.ids=sortIds(r.map(x=>x.id));renderPicker();
 }
 async function saveComboFromPicker(){
   if(!pk.ids.length)return;
   const combo=outfits.find(x=>x.id===pk.comboId),name=$('#pk-name').value.trim()||combo?.name||`코디 ${outfits.length+1}`;
   await put('outfits',{...(combo||{at:Date.now(),uses:0}),ids:pk.ids,name,tags:pk.tags});
   $('#d-pick').close();await refresh();toast('코디에 저장했어요.');
+}
+// 주간 칸에서 바로 코디로 저장 (이름은 요일 기준, 그날 상황은 태그로). 같은 조합이 이미 있으면 새로 만들지 않음
+async function saveDayCombo(d){
+  const ids=sortIds(planOf(d).ids);if(!ids.length)return;
+  const key=a=>sortIds(a).join(',');
+  if(outfits.some(o=>key(o.ids)===key(ids)))return toast('이미 저장된 코디예요.');
+  const sit=planOf(d).situation,name=`${DAY_FULL[d]} 코디`;
+  await put('outfits',{ids,name,at:Date.now(),uses:0,tags:sit?[sit]:[]});
+  await refresh();toast(`"${name}"을(를) 코디에 저장했어요.`);
 }
 async function registerFromDay(){
   if(!pk.ids.length)return;
