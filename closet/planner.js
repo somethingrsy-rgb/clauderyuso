@@ -205,20 +205,21 @@ function renderWeek(){
   renderCombos();
 }
 // 그날의 기온 단계: 직접 고른 게 있으면 그것, 아니면 예보, 둘 다 없으면 저장된 값
-function effTemp(d,date){const p=planOf(d);if(p.tempManual)return p.temp||'mild';const w=date&&WX.get(date);return w?w.temp:(p.temp||'mild')}
+function effTemp(d,date){const w=date&&WX.get(date);return w?w.temp:(planOf(d).temp||'mild')}   // 예보가 있으면 예보, 없을 때만 직접 고른 값
 function tempSel(d,date){
-  const p=planOf(d),w=date&&WX.get(date),auto=!!w&&!p.tempManual;
-  const opts=[...(w?[el('option',{value:'auto',textContent:`자동 · ${TEMP_LABEL[w.temp][0]} ${w.min}~${w.max}°`,selected:auto})]:[]),
-    ...Object.entries(TEMP_LABEL).map(([k,[l,sub]])=>el('option',{value:k,textContent:`${l} ${sub}`,selected:!auto&&k===(p.temp||'mild')}))];
+  const w=date&&WX.get(date);
+  if(w)return el('button',{type:'button',className:'wx-chip',onclick:openWx,'aria-label':`${DAY_FULL[d]} 날씨 ${w.max}도 ${w.min}도, 위치 설정`},
+    el('span',{className:'wx-ic','aria-hidden':'true',innerHTML:wxIcon(w.code,w.pop)}),el('b',{textContent:`${w.max}°`}),el('span',{textContent:`${w.min}°`}));
+  const p=planOf(d);
+  const opts=Object.entries(TEMP_LABEL).map(([k,[l,sub]])=>el('option',{value:k,textContent:`${l} ${sub}`,selected:k===(p.temp||'mild')}));
   const sel=el('select',{className:'wsel','aria-label':DAY_FULL[d]+' 날씨'},...opts);
-  sel.onchange=async()=>{await savePlan(d,sel.value==='auto'?{tempManual:false}:{temp:sel.value,tempManual:true});renderWeek()};   // 맨 위 카드와 요일 칸의 날씨를 같이 맞춤
+  sel.onchange=async()=>{await savePlan(d,{temp:sel.value,tempManual:true});renderWeek()};   // 맨 위 카드와 요일 칸의 날씨를 같이 맞춤
   return sel;
 }
 // 예보 한 줄 (누르면 위치 설정)
 function wxLine(date){
   const w=WX.get(date),b=el('button',{type:'button',className:'wx-line',onclick:openWx});
   if(!WX.loc)b.textContent='날씨를 자동으로 불러오기 ›';
-  else if(w)b.append(el('span',{className:'wx-ic','aria-hidden':'true',innerHTML:wxIcon(w.code,w.pop)}),el('b',{textContent:`${w.max}°`}),el('span',{textContent:` ${w.min}°`}),el('span',{className:'wx-city',textContent:` · ${WX.loc.name}`}));
   else b.textContent=WX.status==='error'?`${WX.loc.name} · 날씨를 못 불러왔어요 ›`:`${WX.loc.name} · 이 날 예보는 아직 없어요 ›`;
   return b;
 }
@@ -256,7 +257,7 @@ function todaySlide(s){
   const fx=todayFx&&todayFx.d===d&&ids.length?todayFx:null;if(fx)todayFx=null;
   const slide=el('div',{className:'tslide'},
     el('div',{className:'wd-head'},el('b',{className:'wd-name',textContent:s.label}),el('span',{className:'wd-date',textContent:s.sub}),tempSel(d,s.date)),
-    wxLine(s.date),
+    ...(WX.get(s.date)?[]:[wxLine(s.date)]),
     sitRow(d),
     ids.length
       ?el('div',{className:'collage-wrap'},el('button',{type:'button',className:'collage'+(fx?(fx.had?' swap-in':' grow-in'):''),onclick:open,'aria-label':DAY_FULL[d]+' 옷 바꾸기'},collageImg(ids)),
