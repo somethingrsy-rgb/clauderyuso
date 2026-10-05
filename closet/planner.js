@@ -4,7 +4,7 @@
    - app.js보다 먼저 불러오고, 화면 연결은 app.js가 initPlanner()를 불러서 해요. */
 const DAYS=['월','화','수','목','금','토','일'];
 const DAY_FULL={월:'월요일',화:'화요일',수:'수요일',목:'목요일',금:'금요일',토:'토요일',일:'일요일'};
-const SITUATIONS=['출근','데이트','모임','운동','여행'];   // 코디에 붙이는 상황 태그
+const SITUATIONS=['출근','주말','가족','운동'];   // 코디에 붙이는 상황 태그
 const seasonsOf=i=>i.seasons&&i.seasons.length?i.seasons:SEASONS;   // 계절을 안 정한 옷은 사계절용
 let plans={};                                   // 요일 → {id:'plan-월', day, ids:[], temp}
 const itemById=id=>items.find(i=>i.id===id);
@@ -217,7 +217,7 @@ function tempSel(d,date){
 // 예보 한 줄 (누르면 위치 설정)
 function wxLine(date){
   const w=WX.get(date),b=el('button',{type:'button',className:'wx-line',onclick:openWx});
-  b.textContent=!WX.loc?'날씨를 자동으로 불러오기 ›':w?`${WX.loc.name} · ${w.min}°~${w.max}°${w.pop>=30?` · 비 ${w.pop}%`:''} ›`
+  b.textContent=!WX.loc?'날씨를 자동으로 불러오기 ›':w?`${WX.loc.name} · 최고 ${w.max}° 최저 ${w.min}°${w.fmax!=null?` · 체감 ${w.fmin}~${w.fmax}°`:''}${w.pop>=30?` · 비 ${w.pop}%`:''} ›`
     :WX.status==='error'?`${WX.loc.name} · 날씨를 못 불러왔어요 ›`:`${WX.loc.name} · 이 날 예보는 아직 없어요 ›`;
   return b;
 }

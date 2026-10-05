@@ -9,7 +9,7 @@ const jget=k=>{try{return JSON.parse(localStorage.getItem(k)||'null')}catch{retu
 const jset=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
 const WX_TTL=60*60*1000;
 const WX={loc:null,days:{},status:'',onChange(){}};
-WX.get=date=>{const d=WX.days[isoDate(date)];return d?{...d,temp:tempKey(d.max,d.min)}:null};
+WX.get=date=>{const d=WX.days[isoDate(date)];return d?{...d,temp:d.fmax!=null?tempKey(d.fmax,d.fmin):tempKey(d.max,d.min)}:null};   // 옷은 체감온도로 고름
 WX.init=()=>{WX.loc=jget('wx:loc');return WX.refresh()};
 WX.setLoc=loc=>{WX.loc=loc;jset('wx:loc',loc);WX.days={};WX.onChange();return WX.refresh()};
 WX.setCity=name=>WX.setLoc({name,lat:CITIES[name][0],lon:CITIES[name][1]});
@@ -23,10 +23,10 @@ WX.refresh=async()=>{
   const key=`${L.lat.toFixed(2)},${L.lon.toFixed(2)}`,c=jget('wx:cache'),same=c&&c.key===key;
   if(same&&Date.now()-c.at<WX_TTL){WX.days=c.days;WX.status='ok';WX.onChange();return}
   try{
-    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${L.lat}&longitude=${L.lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=8`);
+    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${L.lat}&longitude=${L.lon}&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_probability_max&timezone=auto&forecast_days=8`);
     if(!r.ok)throw new Error(r.status);
     const j=await r.json(),days={};
-    j.daily.time.forEach((t,i)=>{days[t]={max:Math.round(j.daily.temperature_2m_max[i]),min:Math.round(j.daily.temperature_2m_min[i]),pop:j.daily.precipitation_probability_max[i]??0}});
+    j.daily.time.forEach((t,i)=>{days[t]={max:Math.round(j.daily.temperature_2m_max[i]),min:Math.round(j.daily.temperature_2m_min[i]),fmax:j.daily.apparent_temperature_max?Math.round(j.daily.apparent_temperature_max[i]):null,fmin:j.daily.apparent_temperature_min?Math.round(j.daily.apparent_temperature_min[i]):null,pop:j.daily.precipitation_probability_max[i]??0}});
     WX.days=days;WX.status='ok';jset('wx:cache',{key,at:Date.now(),days});
   }catch{
     if(same){WX.days=c.days;WX.status='stale'}else WX.status='error';   // 못 받으면 마지막으로 받은 예보를 씀
