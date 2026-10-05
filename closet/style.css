@@ -64,13 +64,13 @@ select:focus-visible{outline-color:var(--accent)}
 .empty p{margin:0 0 22px}
 
 /* buttons */
-.primary,.ghost,.danger{border:0;border-radius:999px;padding:13px 22px;font-weight:600;transition:.15s}
+/* 모든 동작 버튼은 같은 모양·크기 (칩·원형 아이콘·하단 탭·+버튼은 따로) */
+.primary,.ghost,.danger,.mini-btn,.acct:not(.on){border:0;border-radius:10px;padding:8px 14px;min-height:36px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:.15s}
 .primary{background:var(--accent);color:var(--on-accent)}
 .primary:active{transform:scale(.97)}
 .ghost{background:var(--sunk)}
 .danger{background:none;color:var(--danger)}
-.small{padding:9px 14px;font-size:13.5px}
-.wide{width:100%;padding:16px;font-size:16px}
+.wide{width:100%}
 .icon{border:0;background:var(--sunk);width:34px;height:34px;border-radius:50%;font-size:14px;color:var(--muted)}
 
 /* outfit panel */
@@ -109,8 +109,8 @@ select:focus-visible{outline-color:var(--accent)}
 /* account */
 .top-r{display:flex;align-items:center;gap:10px;padding-bottom:4px}
 .top-r .count{padding-bottom:0}
-.acct{border:0;background:var(--sunk);border-radius:999px;min-width:34px;height:34px;padding:0 14px;font-size:13px;font-weight:700}
-.acct.on{background:var(--accent);color:var(--on-accent);padding:0;width:34px}
+.acct{background:var(--sunk)}
+.acct.on{border:0;border-radius:999px;background:var(--accent);color:var(--on-accent);padding:0;width:34px;height:34px;min-width:34px;font-size:13px;font-weight:700}
 .acct-body{display:grid;gap:16px}
 .acct-body p{margin:0}
 .who{display:grid;gap:2px}.who b{font-size:18px}
@@ -155,7 +155,7 @@ select:focus-visible{outline-color:var(--accent)}
 .wd-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:12px 10px;border:0;background:none;padding:0;text-align:left;width:100%;min-width:0}
 .wd-empty{border:1.5px dashed var(--line);background:none;border-radius:14px;min-height:130px;color:var(--muted);font-weight:600;width:100%;grid-column:1/-1}
 .wd-acts{display:flex;gap:6px;flex-wrap:wrap}
-.mini-btn.quiet{background:none;color:var(--muted);border:1px solid var(--line);padding:7px 11px}   /* 실제 테두리: 넘기는 칸(overflow)에서 바깥 그림자가 잘렸음 */
+.mini-btn.quiet{background:none;color:var(--muted);border:1px solid var(--line);padding:7px 13px}   /* 실제 테두리: 넘기는 칸(overflow)에서 바깥 그림자가 잘렸음 */
 .combos{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;padding:0 22px}
 .combo{min-width:0;background:var(--surface);border-radius:20px;padding:14px;box-shadow:0 0 0 1px var(--line);display:grid;gap:12px}
 .combo-head{display:flex;align-items:baseline;gap:10px}
@@ -193,7 +193,7 @@ select:focus-visible{outline-color:var(--accent)}
 .day-head b{font-size:16px;letter-spacing:-.02em}
 .day-head select{margin-left:auto;min-width:0;padding:8px 10px;font-size:13px;border-radius:10px}
 .today{background:var(--accent);color:var(--on-accent);font-size:11px;font-weight:700;border-radius:999px;padding:3px 8px}
-.mini-btn{border:0;background:var(--sunk);border-radius:10px;padding:8px 12px;font-size:13px;font-weight:600}
+.mini-btn{background:var(--sunk)}
 .strip{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
 .strip::-webkit-scrollbar{display:none}
 .piece{min-width:0}   /* 폭에 맞춰 줄바꿈: 폰에서는 한 줄에 2개씩 크게, 고른 옷이 전부 보임 */
