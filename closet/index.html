@@ -28,7 +28,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <input id="q" type="search" placeholder="이름·색상으로 검색" autocomplete="off" aria-label="옷 검색">
       </label>
-      <select id="sort" aria-label="정렬"><option value="cat">종류순</option><option value="new">최신순</option><option value="name">이름순</option></select>
+      <select id="sort" aria-label="정렬"><option value="cat">종류순</option><option value="new">최신순</option><option value="name">이름순</option><option value="worn">많이 입은 순</option><option value="idle">오래 안 입은 순</option></select>
     </div>
     <div id="grid" class="grid"></div>
     <div id="empty" class="empty" hidden>
@@ -46,15 +46,19 @@
       <button id="btn-clear-week" class="ghost small">모두 비우기</button>
     </div>
     <div id="week-grid" class="weekplan"></div>
+    <section id="wear-log" class="wear-log"></section>
   </section>
 
   <section id="tab-combo" class="tab">
     <div class="chips" style="padding:0 22px 12px"><button type="button" class="chip" id="f-looks" aria-pressed="false">착용샷 있는 것만</button></div>
+    <div class="chips" id="f-tags" style="padding:0 22px 12px"></div>
     <div id="combo-list" class="combos"></div>
     <div class="row" style="padding:12px 22px 0"><button id="btn-new-combo" class="ghost">＋ 새 코디 만들기</button></div>
   </section>
 </main>
 
+<input type="file" id="wear-file" accept="image/*" hidden>
+<input type="file" id="wear-cam" accept="image/*" capture="environment" hidden>
 <input type="file" id="look-file" accept="image/*" multiple hidden>
 <div id="selbar" class="selbar" hidden><b id="selcount"></b><span class="spacer"></span><button id="selsave" class="primary small" type="button">코디로 저장</button></div>
 
@@ -118,8 +122,10 @@
 
 <dialog id="d-pick"><div class="sheet-pad">
   <div class="sheet-head"><h2 id="pk-title">코디</h2><button type="button" class="icon" data-close aria-label="닫기">✕</button></div>
+  <div class="field" id="pk-tags-wrap" hidden><span class="lbl">상황 (여러 개 가능)</span><div class="chips" id="pk-tags"></div></div>
   <label class="field" id="pk-name-wrap" hidden><span class="lbl">코디 이름</span><input id="pk-name" placeholder="예: 출근할 때 입는 코디" autocomplete="off"></label>
   <div class="pk-sel" id="pk-sel"></div>
+  <details class="pk-size" id="pk-size" hidden><summary>옷 크기 조절</summary><div class="pk-size-body"><div class="pk-prev" id="pk-prev"></div><div class="pk-size-list" id="pk-size-list"></div></div></details>
   <div class="chips" id="pk-cats"></div>
   <div class="pk-grid" id="pk-grid"></div>
   <div class="pk-save" id="pk-save" hidden>
@@ -134,6 +140,11 @@
   <div class="ap-list" id="ap-list"></div>
 </div></dialog>
 
+<dialog id="d-wx"><div class="sheet-pad">
+  <div class="sheet-head"><h2>날씨 위치</h2><button type="button" class="icon" data-close aria-label="닫기">✕</button></div>
+  <div id="wx-body" class="wx-body"></div>
+</div></dialog>
+
 <dialog id="d-acct"><div class="sheet-pad">
   <div class="sheet-head"><h2>계정</h2><button type="button" class="icon" data-close aria-label="닫기">✕</button></div>
   <div id="acct-body" class="acct-body"></div>
@@ -143,6 +154,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="bgcut.js"></script>
+<script src="weather.js"></script>
 <script src="planner.js"></script>
 <script src="app.js"></script>
 </body>

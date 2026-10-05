@@ -4,6 +4,8 @@
    - app.js보다 먼저 불러오고, 화면 연결은 app.js가 initPlanner()를 불러서 해요. */
 const DAYS=['월','화','수','목','금','토','일'];
 const DAY_FULL={월:'월요일',화:'화요일',수:'수요일',목:'목요일',금:'금요일',토:'토요일',일:'일요일'};
+const SITUATIONS=['출근','주말','가족','운동'];   // 코디에 붙이는 상황 태그
+const seasonsOf=i=>i.seasons&&i.seasons.length?i.seasons:SEASONS;   // 계절을 안 정한 옷은 사계절용
 let plans={};                                   // 요일 → {id:'plan-월', day, ids:[], temp}
 const itemById=id=>items.find(i=>i.id===id);
 const sortIds=ids=>(ids||[]).filter(itemById).sort((a,b)=>CATS.indexOf(itemById(a).cat)-CATS.indexOf(itemById(b).cat));
@@ -103,6 +105,7 @@ async function drawCollage(ids){
     if(s.it.cat==='하의'&&s.h>1.55*ref.h){                       // 하의 길이는 상의의 1.5배 안팎까지 (폭은 .55배 아래로는 안 줄임)
       const k2=Math.max(1.55*ref.h/s.h,.55*refW/s.w);s.w*=k2;s.h*=k2}
   });
+  flat.forEach(s=>{const k=s.it.scale||1;s.w*=k;s.h*=k});     // 직접 맞춘 크기
   cols.forEach(c=>{c.w=Math.max(...c.items.map(s=>s.w));c.h=c.items.reduce((a,s)=>a+s.h,0)+c.gap*(c.items.length-1)});
   const GAPX=30,W=cols.reduce((a,c)=>a+c.w,0)+GAPX*(cols.length-1),H=Math.max(...cols.map(c=>c.h));
   const f=Math.min(1.5,(CW-48)/W,(CH-48)/H);                // 한 덩어리로 키워서 캔버스를 채움
@@ -117,7 +120,7 @@ async function drawCollage(ids){
   return cv.toDataURL('image/png');
 }
 const colUrl=new Map(),colPending=new Map();
-const colKey=ids=>sortIds(ids).map(id=>id+':'+itemById(id).photo.length).join('|');
+const colKey=ids=>sortIds(ids).map(id=>id+':'+itemById(id).photo.length+'@'+(itemById(id).scale||1)).join('|');
 function collage(ids){
   const k=colKey(ids);
   if(!colPending.has(k)){
@@ -143,6 +146,52 @@ async function saveCollage(ids,name){
   }catch{toast('이미지를 만들지 못했어요.')}
 }
 
+/* ---------- 입은 기록: 날짜마다 실제로 입은 옷 (계획과는 따로 저장) ---------- */
+const wearOf=iso=>wears.find(w=>w.id===iso);
+const fmtDate=iso=>{const d=new Date(iso+'T00:00:00');return `${d.getMonth()+1}/${d.getDate()} ${DAYS[(d.getDay()+6)%7]}`};
+const recentWorn=n=>{const cut=new Date();cut.setDate(cut.getDate()-n);const s=new Set(),from=isoDate(cut);for(const w of wears)if(w.date>=from)(w.ids||[]).forEach(i=>s.add(i));return s};
+async function recordWear(iso,ids){
+  if(!ids.length)return toast('옷이 비어 있어요. 먼저 코디를 정해 주세요.');
+  await put('wears',{...(wearOf(iso)||{}),id:iso,date:iso,ids:ids.slice()});await refresh();toast('입은 기록을 남겼어요.');
+}
+async function unrecordWear(iso){await del('wears',iso);await refresh();toast('기록을 지웠어요.')}
+let wearTarget=null,wearDateVal=null;
+async function attachWearLook(file){
+  const w=wearOf(wearTarget);if(!w)return;
+  try{const u=await shrinkLook(file);if(!u)return toast('사진이 너무 커서 줄이지 못했어요.');await put('wears',{...w,look:u});await refresh()}
+  catch{toast('사진을 읽지 못했어요.')}
+}
+async function saveWearFromPicker(){
+  const iso=pk.date,old=wearOf(iso);
+  if(pk.ids.length)await put('wears',{...(old||{}),id:iso,date:iso,ids:pk.ids.slice()});else if(old)await del('wears',iso);
+  $('#d-pick').close();await refresh();
+}
+let wearOpen=false,wearSel=null,wearAdd=false;
+function wearRow(w){
+  const ids=sortIds(w.ids||[]),on=wearSel===w.id;let armed=false;
+  const del_=miniBtn('삭제',e=>{
+    const b=e.currentTarget;if(!armed){armed=true;b.textContent='한 번 더';setTimeout(()=>{armed=false;b.textContent='삭제'},3000);return}
+    wearSel=null;unrecordWear(w.id)},'quiet');
+  const head=el('button',{type:'button',className:'wl-row','aria-expanded':on,onclick:()=>{wearSel=on?null:w.id;renderWears()}},
+    el('b',{textContent:fmtDate(w.date)}),el('span',{className:'muted sm',textContent:`${ids.length}벌`}),el('span',{className:'sp'}),
+    el('span',{className:'wl-thumb'},collageImg(ids)),...(w.look?[el('span',{className:'wl-thumb'},el('img',{src:w.look,alt:'착용샷'}))]:[]));
+  return el('div',{className:'wl-item'+(on?' on':'')},head,
+    ...(on?[el('div',{className:'wl-acts'},miniBtn('사진 보관함',()=>{wearTarget=w.id;$('#wear-file').click()},'quiet'),miniBtn('사진 찍기',()=>{wearTarget=w.id;$('#wear-cam').click()},'quiet'),miniBtn('수정',()=>openPicker({mode:'wear',date:w.date}),'quiet'),del_)]:[]));
+}
+function renderWears(){
+  const box=$('#wear-log');if(!box)return;
+  const today=isoDate(new Date()),mon=today.slice(0,7);
+  const n=wears.filter(w=>w.date.startsWith(mon)).length;
+  const list=wears.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10);
+  const toggle=el('button',{type:'button',className:'wl-toggle','aria-expanded':wearOpen,onclick:()=>{wearOpen=!wearOpen;wearSel=null;wearAdd=false;renderWears()}},
+    el('span',{textContent:'입은 기록'}),el('span',{className:'muted',textContent:n?`이번 달 ${n}일`:'아직 없어요'}),el('span',{className:'sp'}),el('span',{className:'wl-chev',textContent:'›'}));
+  if(!wearOpen){box.replaceChildren(toggle);return}
+  const date=el('input',{type:'date',id:'wear-date',max:today,'aria-label':'기록할 날짜'});
+  date.onchange=()=>{if(date.value){wearAdd=false;openPicker({mode:'wear',date:date.value})}};
+  const add=wearAdd?el('div',{className:'wl-add'},el('span',{className:'muted sm',textContent:'날짜 선택'}),date):miniBtn('+ 지난 날 기록',()=>{wearAdd=true;renderWears()},'quiet');
+  box.replaceChildren(toggle,...(list.length?list.map(wearRow):[el('p',{className:'muted sm',textContent:'오늘 카드에서 "입었어요"를 누르면 여기에 쌓여요.'})]),el('div',{className:'wl-foot'},add));
+}
+
 /* ---------- 요일 칸 ---------- */
 function renderWeek(){
   const box=$('#week-grid');if(!box)return;
@@ -153,12 +202,42 @@ function renderWeek(){
   $('#btn-clear-week').hidden=!planned;
   box.replaceChildren(...DAYS.map((d,i)=>dayCard(d,i,dates[i],ti)));
   renderToday();
+  renderWears();
   renderCombos();
 }
-function tempSel(d){
-  const sel=el('select',{className:'wsel','aria-label':DAY_FULL[d]+' 날씨'},...Object.entries(TEMP_LABEL).map(([k,[l,sub]])=>el('option',{value:k,textContent:`${l} ${sub}`,selected:k===(planOf(d).temp||'mild')})));
-  sel.onchange=async()=>{await savePlan(d,{temp:sel.value});renderWeek()};   // 맨 위 카드와 요일 칸의 날씨를 같이 맞춤
+// 그날의 기온 단계: 직접 고른 게 있으면 그것, 아니면 예보, 둘 다 없으면 저장된 값
+function effTemp(d,date){const w=date&&WX.get(date);return w?w.temp:(planOf(d).temp||'mild')}   // 예보가 있으면 예보, 없을 때만 직접 고른 값
+function tempSel(d,date){
+  const w=date&&WX.get(date);
+  if(w)return el('button',{type:'button',className:'wx-chip',onclick:openWx,'aria-label':`${DAY_FULL[d]} 날씨 ${w.max}도 ${w.min}도, 위치 설정`},
+    el('span',{className:'wx-ic','aria-hidden':'true',innerHTML:wxIcon(w.code,w.pop)}),el('b',{textContent:`${w.max}°`}),el('span',{textContent:`${w.min}°`}));
+  const p=planOf(d);
+  const opts=Object.entries(TEMP_LABEL).map(([k,[l,sub]])=>el('option',{value:k,textContent:`${l} ${sub}`,selected:k===(p.temp||'mild')}));
+  const sel=el('select',{className:'wsel','aria-label':DAY_FULL[d]+' 날씨'},...opts);
+  sel.onchange=async()=>{await savePlan(d,{temp:sel.value,tempManual:true});renderWeek()};   // 맨 위 카드와 요일 칸의 날씨를 같이 맞춤
   return sel;
+}
+// 예보 한 줄 (누르면 위치 설정)
+function wxLine(date){
+  const w=WX.get(date),b=el('button',{type:'button',className:'wx-line',onclick:openWx});
+  if(!WX.loc)b.textContent='날씨를 자동으로 불러오기 ›';
+  else b.textContent=WX.status==='error'?`${WX.loc.name} · 날씨를 못 불러왔어요 ›`:`${WX.loc.name} · 이 날 예보는 아직 없어요 ›`;
+  return b;
+}
+// 오늘 카드의 상황 고르기 (그날 계획에 저장, 추천이 그 상황의 코디를 먼저 고름)
+const sitRow=d=>el('div',{className:'sit-row'},...SITUATIONS.map(t=>{const on=planOf(d).situation===t;
+  return el('button',{type:'button',className:'chip'+(on?' on':''),textContent:t,'aria-pressed':on,onclick:async()=>{await savePlan(d,{situation:on?'':t});renderWeek()}})}));
+function openWx(){
+  const box=$('#wx-body'),here=el('button',{type:'button',className:'primary small',textContent:'현재 위치로 설정',onclick:async e=>{
+    e.currentTarget.disabled=true;
+    try{await WX.useHere();$('#d-wx').close();toast('현재 위치의 날씨를 불러왔어요.')}catch{toast('위치를 가져오지 못했어요. 아래에서 도시를 골라 주세요.',4000);e.target.disabled=false}
+  }});
+  box.replaceChildren(
+    el('p',{className:'muted sm',textContent:WX.loc?`지금: ${WX.loc.name}${WX.status==='stale'?' (마지막으로 받은 예보)':WX.status==='error'?' (예보를 못 받았어요)':''}`:'위치를 정하면 7일 예보로 날씨가 자동으로 채워져요. 위치는 이 기기에만 저장돼요.'}),
+    here,
+    el('div',{className:'chips'},...Object.keys(CITIES).map(n=>el('button',{type:'button',className:'chip'+(WX.loc&&WX.loc.name===n?' on':''),textContent:n,onclick:async()=>{await WX.setCity(n);$('#d-wx').close();toast(`${n} 날씨를 불러왔어요.`)}}))),
+    ...(WX.loc?[el('button',{type:'button',className:'ghost small',textContent:'자동 날씨 끄기',onclick:()=>{WX.loc=null;WX.days={};jset('wx:loc',null);WX.onChange();$('#d-wx').close()}})]:[]));
+  $('#d-wx').showModal();
 }
 // 맨 위 카드: 오늘(일요일엔 내일=월요일)부터 하루씩 7장을 옆으로 넘겨 봄. 비어 있는 날은 추천받기
 const TGAP=28;let todayPos=0;
@@ -167,21 +246,26 @@ function todaySlides(){
   return Array.from({length:7},(_,j)=>{
     const off=start+j,date=new Date(t);date.setDate(t.getDate()+off);
     const d=DAYS[(idx+off)%7],md=`${date.getMonth()+1}/${date.getDate()}`;
-    return{d,label:off===0?'오늘':off===1?'내일':DAY_FULL[d],sub:off<2?`${DAY_FULL[d]} ${md}`:md};
+    return{d,date,off,label:off===0?'오늘':off===1?'내일':DAY_FULL[d],sub:off<2?`${DAY_FULL[d]} ${md}`:md};
   });
 }
+// 오늘 칸의 '입었어요': 누르면 오늘 날짜로 기록, 기록된 뒤에 다시 누르면 지움
+const wearBtn=(date,ids)=>{const iso=isoDate(date),rec=wearOf(iso);
+  return el('button',{type:'button',className:'mini-btn'+(rec?' wore':''),textContent:rec?'입었어요 ✓':'입었어요','aria-pressed':!!rec,onclick:()=>rec?unrecordWear(iso):recordWear(iso,ids)})};
 let todayFx=null;   // 방금 추천으로 바뀐 날: 비어 있었으면 펼쳐지고, 이미 있었으면 교체
 function todaySlide(s){
   const d=s.d,ids=sortIds(planOf(d).ids),open=()=>openPicker({mode:'day',day:d});
   const fx=todayFx&&todayFx.d===d&&ids.length?todayFx:null;if(fx)todayFx=null;
   const slide=el('div',{className:'tslide'},
-    el('div',{className:'wd-head'},el('b',{className:'wd-name',textContent:s.label}),el('span',{className:'wd-date',textContent:s.sub}),tempSel(d)),
+    el('div',{className:'wd-head'},el('b',{className:'wd-name',textContent:s.label}),el('span',{className:'wd-date',textContent:s.sub}),tempSel(d,s.date)),
+    ...(WX.get(s.date)?[]:[wxLine(s.date)]),
+    sitRow(d),
     ids.length
       ?el('div',{className:'collage-wrap'},el('button',{type:'button',className:'collage'+(fx?(fx.had?' swap-in':' grow-in'):''),onclick:open,'aria-label':DAY_FULL[d]+' 옷 바꾸기'},collageImg(ids)),
         ...(fx&&fx.had&&fx.old?[el('img',{className:'collage-ghost',src:fx.old,alt:'',onanimationend:e=>e.target.remove()})]:[]))
       :el('div',{className:'today-empty'},el('p',{className:'muted sm',textContent:'아직 정하지 않았어요'}),
-        el('button',{type:'button',className:'primary small',textContent:'추천받기',onclick:()=>recommendDay(d)}),miniBtn('직접 고르기',open)),
-    ...(ids.length?[el('div',{className:'wd-acts'},miniBtn('바꾸기',open),miniBtn('다시 추천',()=>recommendDay(d)),
+        el('button',{type:'button',className:'primary small',textContent:'추천받기',onclick:()=>recommendDay(d,s.date)}),miniBtn('직접 고르기',open)),
+    ...(ids.length?[el('div',{className:'wd-acts'},...(s.off===0?[wearBtn(s.date,ids)]:[]),miniBtn('바꾸기',open),miniBtn('다시 추천',()=>recommendDay(d,s.date)),
       miniBtn('이미지 저장',()=>saveCollage(ids,`${DAY_FULL[d]} 코디`)),miniBtn('비우기',async()=>{await savePlan(d,{ids:[]});renderWeek()},'quiet'))]:[]));
   slide.dataset.day=d;return slide;
 }
@@ -206,25 +290,37 @@ function renderToday(){
 }
 function dayCard(d,i,date,ti){
   const p=planOf(d),ids=sortIds(p.ids);
-  const sel=tempSel(d);
+  const sel=tempSel(d,date);
   const head=el('div',{className:'wd-head'},el('b',{className:'wd-name',textContent:d}),el('span',{className:'wd-date',textContent:`${date.getMonth()+1}/${date.getDate()}`}),
+    ...(p.situation?[el('span',{className:'sit-tag',textContent:p.situation})]:[]),
     ...(i===ti?[el('span',{className:'today',textContent:'오늘'})]:[]),sel);
   const open=()=>openPicker({mode:'day',day:d});
   const body=ids.length
     ?el('button',{type:'button',className:'wd-strip',onclick:open,'aria-label':DAY_FULL[d]+' 옷 바꾸기'},...thumbs(ids))
     :el('button',{type:'button',className:'wd-empty',onclick:open,textContent:'＋ 옷 고르기'});
-  const acts=el('div',{className:'wd-acts'},miniBtn('고르기',open),miniBtn('코디 불러오기',()=>openApply(d)),miniBtn('추천',()=>recommendDay(d)),
+  const acts=el('div',{className:'wd-acts'},miniBtn('고르기',open),miniBtn('코디 불러오기',()=>openApply(d)),miniBtn('추천',()=>recommendDay(d,date)),
     ...(ids.length?[miniBtn('비우기',async()=>{await savePlan(d,{ids:[]});renderWeek()},'quiet')]:[]));
   return el('div',{className:'wd'+(i===ti?' now':'')},head,body,acts);
 }
-async function recommendDay(d,silent){
+async function recommendDay(d,date,silent){
   const usage={},near=new Set(),idx=DAYS.indexOf(d);
   DAYS.forEach(x=>{if(x!==d)sortIds(planOf(x).ids).forEach(id=>{usage[id]=(usage[id]||0)+1})});
   [idx-1,idx+1].forEach(k=>{if(DAYS[k])sortIds(planOf(DAYS[k]).ids).forEach(id=>near.add(id))});
-  const r=recommend(planOf(d).temp||'mild',{usage,near});
-  if(!r){if(!silent)toast('이 날씨에 맞는 상의+하의(또는 원피스)가 부족해요.');return false}
+  const tk=effTemp(d,date),sit=planOf(d).situation,recent=recentWorn(3);let ids=null;
+  if(sit){   // 상황을 골랐으면 그 태그가 붙은 코디 중 날씨(계절)에 맞는 것을 먼저, 이번 주에 덜 쓴 옷으로 된 것 우선
+    const t=TEMP[tk],c=outfits.filter(o=>(o.tags||[]).includes(sit)).map(o=>({o,its:sortIds(o.ids).map(itemById)}))
+      .filter(x=>x.its.length&&x.its.every(i=>seasonsOf(i).some(s=>t.s.includes(s))))
+      .map(x=>({...x,pen:x.its.reduce((a,i)=>a+(usage[i.id]||0)+(near.has(i.id)?4:0)+(recent.has(i.id)?3:0),0)+Math.random()}));
+    if(c.length)ids=sortIds(c.sort((a,b)=>a.pen-b.pen)[0].o.ids);
+    else if(!silent)toast(`'${sit}' 코디 중 이 날씨에 맞는 게 없어서 새로 추천했어요.`,3500);
+  }
+  if(!ids){
+    const r=recommend(tk,{usage,near,recent});
+    if(!r){if(!silent)toast('이 날씨에 맞는 상의+하의(또는 원피스)가 부족해요.');return false}
+    ids=sortIds(r.map(p=>p.id));
+  }
   todayFx={d,had:sortIds(planOf(d).ids).length>0,old:document.querySelector(`#today .tslide[data-day="${d}"] .collage img`)?.src||null};   // 오늘 카드 전환 연출용
-  await savePlan(d,{ids:sortIds(r.map(p=>p.id))});if(!silent)renderWeek();return true;
+  await savePlan(d,{ids});if(!silent)renderWeek();return true;
 }
 let clearArmed=false;
 async function clearWeek(btn){
@@ -237,19 +333,38 @@ async function clearWeek(btn){
 /* ---------- 옷 고르기 (요일 칸 / 코디 공용) ---------- */
 const pk={mode:'day',day:null,comboId:null,ids:[],cat:'상의'};
 function openPicker(o){
-  pk.mode=o.mode;pk.day=o.day||null;pk.comboId=o.comboId||null;
+  pk.mode=o.mode;pk.day=o.day||null;pk.comboId=o.comboId||null;pk.date=o.date||null;
   const combo=o.comboId?outfits.find(x=>x.id===o.comboId):null;
-  pk.ids=o.mode==='day'?sortIds(planOf(o.day).ids):sortIds(combo?combo.ids:o.ids||[]);   // 옷장에서 고른 옷으로 시작할 수도 있음
+  pk.ids=o.mode==='day'?sortIds(planOf(o.day).ids):o.mode==='wear'?sortIds((wearOf(o.date)||{ids:planOf(DAYS[(new Date(o.date+'T00:00:00').getDay()+6)%7]).ids}).ids):sortIds(combo?combo.ids:o.ids||[]);   // 기록하는 날 계획이 있으면 그걸로 시작   // 옷장에서 고른 옷으로 시작할 수도 있음
   pk.cat=CATS.find(c=>items.some(i=>i.cat===c))||CATS[0];
-  $('#pk-title').textContent=o.mode==='day'?`${DAY_FULL[o.day]} 옷 고르기`:(combo?'코디 수정':'새 코디 만들기');
-  $('#pk-name-wrap').hidden=o.mode!=='combo';$('#pk-name').value=combo?.name||'';
+  $('#pk-title').textContent=o.mode==='day'?`${DAY_FULL[o.day]} 옷 고르기`:o.mode==='wear'?`${fmtDate(o.date)} 입은 옷`:(combo?'코디 수정':'새 코디 만들기');
+  $('#pk-name-wrap').hidden=$('#pk-tags-wrap').hidden=o.mode!=='combo';$('#pk-name').value=combo?.name||'';pk.tags=combo&&combo.tags?[...combo.tags]:[];
   renderPicker();$('#d-pick').showModal();$('#d-pick').scrollTop=0;
 }
 async function pickToggle(id){
   pk.ids=toggleSel(pk.ids,id);renderPicker();                                  // 화면은 바로 바꾸고
   if(pk.mode==='day'){await savePlan(pk.day,{ids:pk.ids});renderWeek()}      // 요일 칸은 누를 때마다 저장
 }
+// 콜라주에서 옷마다 크기를 직접 조절 (옷에 저장돼서 모든 코디에 똑같이 적용)
+const SCALE_MIN=.6,SCALE_MAX=1.6;
+async function setScale(it,v){
+  v=Math.round(Math.min(SCALE_MAX,Math.max(SCALE_MIN,v))*10)/10;
+  it.scale=v===1?undefined:v;await put('items',it);
+  renderSizes();renderWeek();if(typeof renderCombos==='function')renderCombos();
+}
+function renderSizes(){
+  const box=$('#pk-size'),ids=sortIds(pk.ids);box.hidden=!ids.length;if(!ids.length)return;
+  $('#pk-prev').replaceChildren(collageImg(ids));
+  $('#pk-size-list').replaceChildren(...ids.map(id=>{const it=itemById(id),v=it.scale||1;
+    return el('div',{className:'sz-row'},el('span',{className:'sz-nm',textContent:it.name||it.cat}),
+      el('button',{type:'button',className:'sz-b','aria-label':'작게',disabled:v<=SCALE_MIN,textContent:'−',onclick:()=>setScale(it,v-.1)}),
+      el('output',{className:'sz-v',textContent:`${Math.round(v*100)}%`}),
+      el('button',{type:'button',className:'sz-b','aria-label':'크게',disabled:v>=SCALE_MAX,textContent:'+',onclick:()=>setScale(it,v+.1)}),
+      el('button',{type:'button',className:'sz-r',textContent:'자동',disabled:!it.scale,onclick:()=>setScale(it,1)}))}));
+}
 function renderPicker(){
+  $('#pk-tags').replaceChildren(...SITUATIONS.map(t=>chip(t,pk.tags.includes(t),()=>{pk.tags=pk.tags.includes(t)?pk.tags.filter(x=>x!==t):[...pk.tags,t];renderPicker()})));
+  renderSizes();
   const sel=$('#pk-sel');
   sel.replaceChildren(...(pk.ids.length?sortIds(pk.ids).map(id=>{const it=itemById(id);
     return el('button',{type:'button',className:'pk-chip',title:'빼기','aria-label':(it.name||it.cat)+' 빼기',onclick:()=>pickToggle(id)},el('img',{src:it.photo,alt:''}),el('i',{textContent:'✕'}))})
@@ -268,6 +383,9 @@ function renderPicker(){
     $('#pk-save-btn').disabled=!pk.ids.length;
     acts.replaceChildren(miniBtn('비우기',async()=>{pk.ids=[];await savePlan(pk.day,{ids:[]});renderWeek();renderPicker()},'quiet'),
       el('button',{type:'button',className:'primary',textContent:'완료',onclick:()=>$('#d-pick').close()}));
+  }else if(pk.mode==='wear'){
+    save.hidden=true;
+    acts.replaceChildren(el('span',{className:'spacer'}),el('button',{type:'button',className:'primary',textContent:'기록',onclick:saveWearFromPicker}));
   }else{
     save.hidden=true;
     const combo=outfits.find(x=>x.id===pk.comboId);
@@ -279,13 +397,14 @@ function renderPicker(){
 async function saveComboFromPicker(){
   if(!pk.ids.length)return;
   const combo=outfits.find(x=>x.id===pk.comboId),name=$('#pk-name').value.trim()||combo?.name||`코디 ${outfits.length+1}`;
-  await put('outfits',{...(combo||{at:Date.now(),uses:0}),ids:pk.ids,name});
+  await put('outfits',{...(combo||{at:Date.now(),uses:0}),ids:pk.ids,name,tags:pk.tags});
   $('#d-pick').close();await refresh();toast('코디에 저장했어요.');
 }
 async function registerFromDay(){
   if(!pk.ids.length)return;
   const name=$('#pk-combo-name').value.trim()||`${pk.day}요일 코디`;
-  await put('outfits',{ids:pk.ids.slice(),name,at:Date.now(),uses:0});
+  const sit=planOf(pk.day).situation;
+  await put('outfits',{ids:pk.ids.slice(),name,at:Date.now(),uses:0,tags:sit?[sit]:[]});   // 그날 고른 상황이 있으면 그대로 태그로
   $('#pk-combo-name').value='';await refresh();toast(`"${name}"을(를) 코디에 등록했어요.`);
 }
 
@@ -297,13 +416,16 @@ async function applyCombo(o,day){
 }
 const comboName=o=>o.name||`코디 ${outfits.indexOf(o)+1}`;
 // 코디 카드의 큰 이미지: 콜라주 → 올려 둔 착용샷(최대 3장) → 올리기 칸을 옆으로 넘김
-const MAX_LOOKS=3,LGAP=16;let onlyLooks=false,lookTarget=null;const comboPos={};
+const MAX_LOOKS=3,LGAP=16;let onlyLooks=false,lookTarget=null,comboTag=null;const comboPos={};
 function renderCombos(){
   const box=$('#combo-list');if(!box)return;
   const withLooks=outfits.filter(o=>(o.looks||[]).length);
   const f=$('#f-looks');f.classList.toggle('on',onlyLooks);f.setAttribute('aria-pressed',onlyLooks);f.textContent=`착용샷 있는 것만 · ${withLooks.length}`;
-  const list=(onlyLooks?withLooks:outfits).slice().sort((a,b)=>(b.uses||0)-(a.uses||0)||(b.at||0)-(a.at||0));
-  const none=onlyLooks&&outfits.length?'착용샷을 올린 코디가 아직 없어요.':'아직 등록한 코디가 없어요. 자주 입는 차림을 코디로 만들어 두면 어느 요일에든 한 번에 넣을 수 있어요.';
+  const tagN=Object.fromEntries(SITUATIONS.map(t=>[t,outfits.filter(o=>(o.tags||[]).includes(t)).length]));
+  if(comboTag&&!tagN[comboTag])comboTag=null;
+  $('#f-tags').replaceChildren(...SITUATIONS.filter(t=>tagN[t]).map(t=>chip(`${t} · ${tagN[t]}`,comboTag===t,()=>{comboTag=comboTag===t?null:t;renderCombos()})));
+  const list=(onlyLooks?withLooks:outfits).filter(o=>!comboTag||(o.tags||[]).includes(comboTag)).sort((a,b)=>(b.uses||0)-(a.uses||0)||(b.at||0)-(a.at||0));
+  const none=(onlyLooks||comboTag)&&outfits.length?'조건에 맞는 코디가 아직 없어요.':'아직 등록한 코디가 없어요. 자주 입는 차림을 코디로 만들어 두면 어느 요일에든 한 번에 넣을 수 있어요.';
   box.replaceChildren(...(list.length?list.map(comboCard):[el('p',{className:'muted sm',style:'padding:0 22px;margin:0',textContent:none})]));
   goCombos();
 }
@@ -342,6 +464,7 @@ function comboCard(o){
   return el('div',{className:'combo'},
     el('div',{className:'combo-head'},el('b',{textContent:comboName(o)}),el('small',{className:'muted',textContent:o.uses?`${o.uses}회 사용`:'아직 안 썼어요'}),
       miniBtn('수정',()=>openPicker({mode:'combo',comboId:o.id}),'quiet'),miniBtn('저장',()=>saveCollage(ids,comboName(o)),'quiet')),
+    ...((o.tags||[]).length?[el('div',{className:'tags'},...o.tags.map(t=>el('span',{className:'sit-tag',textContent:t})))]:[]),
     looksSlider(o,ids),
     el('div',{className:'combo-days'},el('span',{className:'lbl',textContent:'넣기'}),...DAYS.map(d=>el('button',{type:'button',className:'dbtn',textContent:d,'aria-label':DAY_FULL[d]+'에 넣기',disabled:!ids.length,onclick:()=>applyCombo(o,d)}))));
 }
@@ -382,6 +505,7 @@ function openApply(day){
 async function scrubItem(id){
   for(const o of outfits.slice())if(o.ids.includes(id)){const ids=o.ids.filter(x=>x!==id);if(ids.length)await put('outfits',{...o,ids});else await del('outfits',o.id)}
   for(const d of DAYS){const p=plans[d];if(p&&p.ids.includes(id))await savePlan(d,{ids:p.ids.filter(x=>x!==id)})}
+  for(const w of wears.slice())if((w.ids||[]).includes(id)){const ids=w.ids.filter(x=>x!==id);if(ids.length)await put('wears',{...w,ids});else await del('wears',w.id)}
 }
 
 function initPlanner(){
@@ -393,6 +517,8 @@ function initPlanner(){
     $(id).addEventListener('click',e=>{if(e.target===$(id))$(id).close()});
   }
   $('#d-pick').addEventListener('close',()=>refresh());
+  WX.onChange=()=>renderWeek();
+  for(const id of ['#wear-file','#wear-cam'])$(id).onchange=async e=>{const f=e.target.files[0];e.target.value='';if(f)await attachWearLook(f)};
   $('#f-looks').onclick=()=>{onlyLooks=!onlyLooks;renderCombos()};
   $('#look-file').onchange=async e=>{const fs=[...e.target.files];e.target.value='';if(fs.length)await addLooks(fs)};
   renderWeek();
