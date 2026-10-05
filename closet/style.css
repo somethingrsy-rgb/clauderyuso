@@ -291,7 +291,9 @@ body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area
 
 /* 입은 기록 */
 .mini-btn.wore{background:var(--accent);color:var(--on-accent)}
-.wear-log{margin:18px 22px 0;display:grid;gap:6px}
+.wear-log{margin:18px 22px 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.wear-log>.wl-toggle,.wear-log>.wl-foot,.wear-log>p,.wear-log>.wl-item.on{grid-column:1/-1}
+.wl-row .muted{white-space:nowrap}
 .wl-toggle{display:flex;align-items:center;gap:8px;width:100%;padding:10px 4px;background:none;border:0;border-top:1px solid var(--line);font:inherit;font-size:14px;font-weight:600;color:var(--fg);text-align:left;cursor:pointer;min-height:44px}
 .wl-toggle .muted{font-weight:400;font-size:13px}.wl-toggle .sp,.wl-row .sp{flex:1}
 .wl-chev{transition:transform .2s;color:var(--muted)}.wl-toggle[aria-expanded=true] .wl-chev{transform:rotate(90deg)}
