@@ -291,12 +291,15 @@ body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area
 
 /* 입은 기록 */
 .mini-btn.wore{background:var(--accent);color:var(--on-accent)}
-.wear-log{margin:0 22px;display:grid;gap:10px}
-.wear-log .section{margin:30px 0 2px}
-.wl-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.wl-bar input[type=date]{flex:1;min-width:130px;max-width:170px;padding:8px 10px;font-size:13px;border-radius:10px}
-.wl-item{background:var(--surface);border-radius:18px;padding:12px;box-shadow:0 0 0 1px var(--line);display:grid;gap:10px;min-width:0}
-.wl-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.wl-head b{font-size:16px;letter-spacing:-.02em}.wl-head .sp{flex:1}
-.wl-pics{display:flex;gap:8px}
-.wl-pic{width:96px;aspect-ratio:3/4;box-sizing:border-box;border-radius:12px;border:1px solid var(--line);background:#fff;overflow:hidden;flex:none}
-.wl-pic img{display:block;width:100%;height:100%;object-fit:contain}
+.wear-log{margin:18px 22px 0;display:grid;gap:6px}
+.wl-toggle{display:flex;align-items:center;gap:8px;width:100%;padding:10px 4px;background:none;border:0;border-top:1px solid var(--line);font:inherit;font-size:14px;font-weight:600;color:var(--fg);text-align:left;cursor:pointer;min-height:44px}
+.wl-toggle .muted{font-weight:400;font-size:13px}.wl-toggle .sp,.wl-row .sp{flex:1}
+.wl-chev{transition:transform .2s;color:var(--muted)}.wl-toggle[aria-expanded=true] .wl-chev{transform:rotate(90deg)}
+.wl-item{background:var(--surface);border-radius:14px;box-shadow:0 0 0 1px var(--line);min-width:0}
+.wl-row{display:flex;align-items:center;gap:8px;width:100%;padding:6px 10px;background:none;border:0;font:inherit;color:var(--fg);text-align:left;cursor:pointer;min-height:48px}
+.wl-row b{font-size:14px;letter-spacing:-.02em}
+.wl-thumb{width:32px;aspect-ratio:3/4;border-radius:6px;border:1px solid var(--line);background:#fff;overflow:hidden;flex:none;display:block}
+.wl-thumb img{display:block;width:100%;height:100%;object-fit:contain}
+.wl-acts{display:flex;gap:6px;padding:0 10px 8px;justify-content:flex-end}
+.wl-foot{display:flex;justify-content:flex-end}.wl-add{display:flex;align-items:center;gap:8px}
+.wl-add input[type=date]{padding:6px 10px;font-size:13px;border-radius:10px}

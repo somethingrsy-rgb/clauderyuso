@@ -165,27 +165,30 @@ async function saveWearFromPicker(){
   if(pk.ids.length)await put('wears',{...(old||{}),id:iso,date:iso,ids:pk.ids.slice()});else if(old)await del('wears',iso);
   $('#d-pick').close();await refresh();
 }
+let wearOpen=false,wearSel=null,wearAdd=false;
 function wearRow(w){
-  const ids=sortIds(w.ids||[]);let armed=false;
+  const ids=sortIds(w.ids||[]),on=wearSel===w.id;let armed=false;
   const del_=miniBtn('삭제',e=>{
     const b=e.currentTarget;if(!armed){armed=true;b.textContent='한 번 더';setTimeout(()=>{armed=false;b.textContent='삭제'},3000);return}
-    unrecordWear(w.id)},'quiet');
-  return el('div',{className:'wl-item'},
-    el('div',{className:'wl-head'},el('b',{textContent:fmtDate(w.date)}),el('span',{className:'muted sm',textContent:`${ids.length}벌`}),el('span',{className:'sp'}),
-      miniBtn(w.look?'사진 바꾸기':'사진 올리기',()=>{wearTarget=w.id;$('#wear-file').click()},'quiet'),miniBtn('수정',()=>openPicker({mode:'wear',date:w.date}),'quiet'),del_),
-    el('div',{className:'wl-pics'},...(ids.length?[el('div',{className:'wl-pic'},collageImg(ids))]:[]),...(w.look?[el('div',{className:'wl-pic'},el('img',{src:w.look,alt:fmtDate(w.date)+' 착용샷'}))]:[])));
+    wearSel=null;unrecordWear(w.id)},'quiet');
+  const head=el('button',{type:'button',className:'wl-row','aria-expanded':on,onclick:()=>{wearSel=on?null:w.id;renderWears()}},
+    el('b',{textContent:fmtDate(w.date)}),el('span',{className:'muted sm',textContent:`${ids.length}벌`}),el('span',{className:'sp'}),
+    el('span',{className:'wl-thumb'},collageImg(ids)),...(w.look?[el('span',{className:'wl-thumb'},el('img',{src:w.look,alt:'착용샷'}))]:[]));
+  return el('div',{className:'wl-item'+(on?' on':'')},head,
+    ...(on?[el('div',{className:'wl-acts'},miniBtn(w.look?'사진 바꾸기':'사진 올리기',()=>{wearTarget=w.id;$('#wear-file').click()},'quiet'),miniBtn('수정',()=>openPicker({mode:'wear',date:w.date}),'quiet'),del_)]:[]));
 }
 function renderWears(){
   const box=$('#wear-log');if(!box)return;
-  const today=isoDate(new Date()),tids=sortIds(planOf(DAYS[todayIdx()]).ids),rec=wearOf(today);
-  if(!wearDateVal){const y=new Date();y.setDate(y.getDate()-1);wearDateVal=isoDate(y)}
+  const today=isoDate(new Date()),mon=today.slice(0,7);
+  const n=wears.filter(w=>w.date.startsWith(mon)).length;
   const list=wears.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10);
-  const date=el('input',{type:'date',id:'wear-date',value:wearDateVal,max:today,'aria-label':'기록할 날짜'});
-  date.onchange=()=>{wearDateVal=date.value||wearDateVal};
-  box.replaceChildren(el('h2',{className:'section',textContent:'입은 기록'}),
-    el('div',{className:'wl-bar'},el('button',{type:'button',className:rec?'primary small':'ghost small',textContent:rec?'오늘 입었어요 ✓':'오늘 입었어요',onclick:()=>rec?unrecordWear(today):recordWear(today,tids)}),
-      date,miniBtn('이 날 기록',()=>{if(date.value)openPicker({mode:'wear',date:date.value})})),
-    ...(list.length?list.map(wearRow):[el('p',{className:'muted sm',textContent:'입은 날 "입었어요"를 누르면 여기에 쌓여요. 옷장에서는 옷마다 입은 횟수를 보고 "오래 안 입은 순"으로도 볼 수 있어요.'})]));
+  const toggle=el('button',{type:'button',className:'wl-toggle','aria-expanded':wearOpen,onclick:()=>{wearOpen=!wearOpen;wearSel=null;wearAdd=false;renderWears()}},
+    el('span',{textContent:'입은 기록'}),el('span',{className:'muted',textContent:n?`이번 달 ${n}일`:'아직 없어요'}),el('span',{className:'sp'}),el('span',{className:'wl-chev',textContent:'›'}));
+  if(!wearOpen){box.replaceChildren(toggle);return}
+  const date=el('input',{type:'date',id:'wear-date',max:today,'aria-label':'기록할 날짜'});
+  date.onchange=()=>{if(date.value){wearAdd=false;openPicker({mode:'wear',date:date.value})}};
+  const add=wearAdd?el('div',{className:'wl-add'},el('span',{className:'muted sm',textContent:'날짜 선택'}),date):miniBtn('+ 지난 날 기록',()=>{wearAdd=true;renderWears()},'quiet');
+  box.replaceChildren(toggle,...(list.length?list.map(wearRow):[el('p',{className:'muted sm',textContent:'오늘 카드에서 "입었어요"를 누르면 여기에 쌓여요.'})]),el('div',{className:'wl-foot'},add));
 }
 
 /* ---------- 요일 칸 ---------- */
