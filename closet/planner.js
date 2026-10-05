@@ -217,8 +217,9 @@ function tempSel(d,date){
 // 예보 한 줄 (누르면 위치 설정)
 function wxLine(date){
   const w=WX.get(date),b=el('button',{type:'button',className:'wx-line',onclick:openWx});
-  b.textContent=!WX.loc?'날씨를 자동으로 불러오기 ›':w?`${WX.loc.name} · 최고 ${w.max}° 최저 ${w.min}°${w.fmax!=null?` · 체감 ${w.fmin}~${w.fmax}°`:''}${w.pop>=30?` · 비 ${w.pop}%`:''} ›`
-    :WX.status==='error'?`${WX.loc.name} · 날씨를 못 불러왔어요 ›`:`${WX.loc.name} · 이 날 예보는 아직 없어요 ›`;
+  if(!WX.loc)b.textContent='날씨를 자동으로 불러오기 ›';
+  else if(w)b.append(el('span',{className:'wx-ic',textContent:wxIcon(w.code,w.pop),'aria-hidden':'true'}),el('b',{textContent:`${w.max}°`}),el('span',{textContent:` ${w.min}°`}),el('span',{className:'wx-city',textContent:` · ${WX.loc.name}`}));
+  else b.textContent=WX.status==='error'?`${WX.loc.name} · 날씨를 못 불러왔어요 ›`:`${WX.loc.name} · 이 날 예보는 아직 없어요 ›`;
   return b;
 }
 // 오늘 카드의 상황 고르기 (그날 계획에 저장, 추천이 그 상황의 코디를 먼저 고름)
