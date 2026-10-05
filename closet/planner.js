@@ -155,10 +155,34 @@ function renderWeek(){
   renderToday();
   renderCombos();
 }
-function tempSel(d){
-  const sel=el('select',{className:'wsel','aria-label':DAY_FULL[d]+' 날씨'},...Object.entries(TEMP_LABEL).map(([k,[l,sub]])=>el('option',{value:k,textContent:`${l} ${sub}`,selected:k===(planOf(d).temp||'mild')})));
-  sel.onchange=async()=>{await savePlan(d,{temp:sel.value});renderWeek()};   // 맨 위 카드와 요일 칸의 날씨를 같이 맞춤
+// 그날의 기온 단계: 직접 고른 게 있으면 그것, 아니면 예보, 둘 다 없으면 저장된 값
+function effTemp(d,date){const p=planOf(d);if(p.tempManual)return p.temp||'mild';const w=date&&WX.get(date);return w?w.temp:(p.temp||'mild')}
+function tempSel(d,date){
+  const p=planOf(d),w=date&&WX.get(date),auto=!!w&&!p.tempManual;
+  const opts=[...(w?[el('option',{value:'auto',textContent:`자동 · ${TEMP_LABEL[w.temp][0]} ${w.min}~${w.max}°`,selected:auto})]:[]),
+    ...Object.entries(TEMP_LABEL).map(([k,[l,sub]])=>el('option',{value:k,textContent:`${l} ${sub}`,selected:!auto&&k===(p.temp||'mild')}))];
+  const sel=el('select',{className:'wsel','aria-label':DAY_FULL[d]+' 날씨'},...opts);
+  sel.onchange=async()=>{await savePlan(d,sel.value==='auto'?{tempManual:false}:{temp:sel.value,tempManual:true});renderWeek()};   // 맨 위 카드와 요일 칸의 날씨를 같이 맞춤
   return sel;
+}
+// 예보 한 줄 (누르면 위치 설정)
+function wxLine(date){
+  const w=WX.get(date),b=el('button',{type:'button',className:'wx-line',onclick:openWx});
+  b.textContent=!WX.loc?'날씨를 자동으로 불러오기 ›':w?`${WX.loc.name} · ${w.min}°~${w.max}°${w.pop>=30?` · 비 ${w.pop}%`:''} ›`
+    :WX.status==='error'?`${WX.loc.name} · 날씨를 못 불러왔어요 ›`:`${WX.loc.name} · 이 날 예보는 아직 없어요 ›`;
+  return b;
+}
+function openWx(){
+  const box=$('#wx-body'),here=el('button',{type:'button',className:'primary small',textContent:'현재 위치로 설정',onclick:async e=>{
+    e.currentTarget.disabled=true;
+    try{await WX.useHere();$('#d-wx').close();toast('현재 위치의 날씨를 불러왔어요.')}catch{toast('위치를 가져오지 못했어요. 아래에서 도시를 골라 주세요.',4000);e.target.disabled=false}
+  }});
+  box.replaceChildren(
+    el('p',{className:'muted sm',textContent:WX.loc?`지금: ${WX.loc.name}${WX.status==='stale'?' (마지막으로 받은 예보)':WX.status==='error'?' (예보를 못 받았어요)':''}`:'위치를 정하면 7일 예보로 날씨가 자동으로 채워져요. 위치는 이 기기에만 저장돼요.'}),
+    here,
+    el('div',{className:'chips'},...Object.keys(CITIES).map(n=>el('button',{type:'button',className:'chip'+(WX.loc&&WX.loc.name===n?' on':''),textContent:n,onclick:async()=>{await WX.setCity(n);$('#d-wx').close();toast(`${n} 날씨를 불러왔어요.`)}}))),
+    ...(WX.loc?[el('button',{type:'button',className:'ghost small',textContent:'자동 날씨 끄기',onclick:()=>{WX.loc=null;WX.days={};jset('wx:loc',null);WX.onChange();$('#d-wx').close()}})]:[]));
+  $('#d-wx').showModal();
 }
 // 맨 위 카드: 오늘(일요일엔 내일=월요일)부터 하루씩 7장을 옆으로 넘겨 봄. 비어 있는 날은 추천받기
 const TGAP=28;let todayPos=0;
@@ -167,7 +191,7 @@ function todaySlides(){
   return Array.from({length:7},(_,j)=>{
     const off=start+j,date=new Date(t);date.setDate(t.getDate()+off);
     const d=DAYS[(idx+off)%7],md=`${date.getMonth()+1}/${date.getDate()}`;
-    return{d,label:off===0?'오늘':off===1?'내일':DAY_FULL[d],sub:off<2?`${DAY_FULL[d]} ${md}`:md};
+    return{d,date,off,label:off===0?'오늘':off===1?'내일':DAY_FULL[d],sub:off<2?`${DAY_FULL[d]} ${md}`:md};
   });
 }
 let todayFx=null;   // 방금 추천으로 바뀐 날: 비어 있었으면 펼쳐지고, 이미 있었으면 교체
@@ -175,13 +199,14 @@ function todaySlide(s){
   const d=s.d,ids=sortIds(planOf(d).ids),open=()=>openPicker({mode:'day',day:d});
   const fx=todayFx&&todayFx.d===d&&ids.length?todayFx:null;if(fx)todayFx=null;
   const slide=el('div',{className:'tslide'},
-    el('div',{className:'wd-head'},el('b',{className:'wd-name',textContent:s.label}),el('span',{className:'wd-date',textContent:s.sub}),tempSel(d)),
+    el('div',{className:'wd-head'},el('b',{className:'wd-name',textContent:s.label}),el('span',{className:'wd-date',textContent:s.sub}),tempSel(d,s.date)),
+    wxLine(s.date),
     ids.length
       ?el('div',{className:'collage-wrap'},el('button',{type:'button',className:'collage'+(fx?(fx.had?' swap-in':' grow-in'):''),onclick:open,'aria-label':DAY_FULL[d]+' 옷 바꾸기'},collageImg(ids)),
         ...(fx&&fx.had&&fx.old?[el('img',{className:'collage-ghost',src:fx.old,alt:'',onanimationend:e=>e.target.remove()})]:[]))
       :el('div',{className:'today-empty'},el('p',{className:'muted sm',textContent:'아직 정하지 않았어요'}),
-        el('button',{type:'button',className:'primary small',textContent:'추천받기',onclick:()=>recommendDay(d)}),miniBtn('직접 고르기',open)),
-    ...(ids.length?[el('div',{className:'wd-acts'},miniBtn('바꾸기',open),miniBtn('다시 추천',()=>recommendDay(d)),
+        el('button',{type:'button',className:'primary small',textContent:'추천받기',onclick:()=>recommendDay(d,s.date)}),miniBtn('직접 고르기',open)),
+    ...(ids.length?[el('div',{className:'wd-acts'},miniBtn('바꾸기',open),miniBtn('다시 추천',()=>recommendDay(d,s.date)),
       miniBtn('이미지 저장',()=>saveCollage(ids,`${DAY_FULL[d]} 코디`)),miniBtn('비우기',async()=>{await savePlan(d,{ids:[]});renderWeek()},'quiet'))]:[]));
   slide.dataset.day=d;return slide;
 }
@@ -206,22 +231,22 @@ function renderToday(){
 }
 function dayCard(d,i,date,ti){
   const p=planOf(d),ids=sortIds(p.ids);
-  const sel=tempSel(d);
+  const sel=tempSel(d,date);
   const head=el('div',{className:'wd-head'},el('b',{className:'wd-name',textContent:d}),el('span',{className:'wd-date',textContent:`${date.getMonth()+1}/${date.getDate()}`}),
     ...(i===ti?[el('span',{className:'today',textContent:'오늘'})]:[]),sel);
   const open=()=>openPicker({mode:'day',day:d});
   const body=ids.length
     ?el('button',{type:'button',className:'wd-strip',onclick:open,'aria-label':DAY_FULL[d]+' 옷 바꾸기'},...thumbs(ids))
     :el('button',{type:'button',className:'wd-empty',onclick:open,textContent:'＋ 옷 고르기'});
-  const acts=el('div',{className:'wd-acts'},miniBtn('고르기',open),miniBtn('코디 불러오기',()=>openApply(d)),miniBtn('추천',()=>recommendDay(d)),
+  const acts=el('div',{className:'wd-acts'},miniBtn('고르기',open),miniBtn('코디 불러오기',()=>openApply(d)),miniBtn('추천',()=>recommendDay(d,date)),
     ...(ids.length?[miniBtn('비우기',async()=>{await savePlan(d,{ids:[]});renderWeek()},'quiet')]:[]));
   return el('div',{className:'wd'+(i===ti?' now':'')},head,body,acts);
 }
-async function recommendDay(d,silent){
+async function recommendDay(d,date,silent){
   const usage={},near=new Set(),idx=DAYS.indexOf(d);
   DAYS.forEach(x=>{if(x!==d)sortIds(planOf(x).ids).forEach(id=>{usage[id]=(usage[id]||0)+1})});
   [idx-1,idx+1].forEach(k=>{if(DAYS[k])sortIds(planOf(DAYS[k]).ids).forEach(id=>near.add(id))});
-  const r=recommend(planOf(d).temp||'mild',{usage,near});
+  const r=recommend(effTemp(d,date),{usage,near});
   if(!r){if(!silent)toast('이 날씨에 맞는 상의+하의(또는 원피스)가 부족해요.');return false}
   todayFx={d,had:sortIds(planOf(d).ids).length>0,old:document.querySelector(`#today .tslide[data-day="${d}"] .collage img`)?.src||null};   // 오늘 카드 전환 연출용
   await savePlan(d,{ids:sortIds(r.map(p=>p.id))});if(!silent)renderWeek();return true;
@@ -393,6 +418,7 @@ function initPlanner(){
     $(id).addEventListener('click',e=>{if(e.target===$(id))$(id).close()});
   }
   $('#d-pick').addEventListener('close',()=>refresh());
+  WX.onChange=()=>renderWeek();
   $('#f-looks').onclick=()=>{onlyLooks=!onlyLooks;renderCombos()};
   $('#look-file').onchange=async e=>{const fs=[...e.target.files];e.target.value='';if(fs.length)await addLooks(fs)};
   renderWeek();

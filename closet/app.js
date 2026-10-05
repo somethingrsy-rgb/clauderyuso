@@ -323,6 +323,8 @@ function openDlg(it){
   $('#btn-del').hidden=!it;$('#dlg').showModal();$('#dlg').scrollTop=0;
 }
 $('#q').oninput=renderCloset;$('#sort').onchange=renderCloset;
+document.querySelectorAll('#d-wx [data-close]').forEach(b=>b.onclick=()=>$('#d-wx').close());
+$('#d-wx').addEventListener('click',e=>{if(e.target===$('#d-wx'))$('#d-wx').close()});
 $('#btn-sel').onclick=()=>{if(selMode||items.length)setSel(!selMode)};
 $('#selsave').onclick=()=>{openPicker({mode:'combo',ids:selIds});setSel(false)};
 $('#fab').onclick=()=>openDlg();$('#empty-add').onclick=()=>openDlg();
@@ -434,6 +436,6 @@ document.querySelectorAll('.dock button[data-tab]').forEach(b=>b.onclick=()=>{
   $('#count').hidden=$('#btn-sel').hidden=b.dataset.tab!=='closet';$('#fab').hidden=b.dataset.tab!=='closet';window.scrollTo({top:0});
 });
 (async()=>{
-  renderCatChips();renderSwatches();db=await open();await migrateIds();initPlanner();await refresh();initCloud();
+  renderCatChips();renderSwatches();db=await open();await migrateIds();initPlanner();await refresh();initCloud();WX.init();
   if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
