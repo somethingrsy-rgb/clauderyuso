@@ -169,7 +169,7 @@ async function refresh(){
   wearInfo=new Map();   // 옷마다 입은 횟수와 마지막으로 입은 날
   for(const w of wears)for(const id of w.ids||[]){const e=wearInfo.get(id)||{n:0,last:''};e.n++;if(w.date>e.last)e.last=w.date;wearInfo.set(id,e)}
   plans=Object.fromEntries((await all('plans')).map(p=>[p.day,p]));
-  renderCloset();renderWeek();renderAvatar();
+  renderCloset();renderWeek();
   $('#count').textContent=items.length?`총 ${items.length}벌`:'';
   fitAll();
 }
@@ -468,7 +468,7 @@ async function downloadAllPhotos(){
 }
 
 /* ---------- 탭 / 시작 ---------- */
-const TITLES={closet:['MY CLOSET','옷장'],combo:['OUTFITS','코디'],week:['THIS WEEK','주간'],avatar:['DRESS UP','아바타']};
+const TITLES={closet:['MY CLOSET','옷장'],combo:['OUTFITS','코디'],week:['THIS WEEK','주간']};
 const dockBtns=[...document.querySelectorAll('.dock button[data-tab]')];
 document.querySelectorAll('.dock button[data-tab]').forEach(b=>b.onclick=()=>{
   if(selMode)setSel(false);
@@ -482,6 +482,6 @@ document.querySelectorAll('.dock button[data-tab]').forEach(b=>b.onclick=()=>{
   $('#count').hidden=$('#btn-sel').hidden=b.dataset.tab!=='closet';$('#fab').hidden=b.dataset.tab!=='closet';window.scrollTo({top:0});
 });
 (async()=>{
-  renderCatChips();renderSwatches();db=await open();await migrateIds();initPlanner();initAvatar();$('#btn-zip').onclick=downloadAllPhotos;await refresh();initCloud();WX.init();
+  renderCatChips();renderSwatches();db=await open();await migrateIds();initPlanner();$('#btn-zip').onclick=downloadAllPhotos;await refresh();initCloud();WX.init();
   if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
