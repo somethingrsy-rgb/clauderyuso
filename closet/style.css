@@ -113,6 +113,7 @@ select:focus-visible{outline-color:var(--accent)}
 .acct.on{border:0;border-radius:999px;background:var(--accent);color:var(--on-accent);padding:0;width:34px;height:34px;min-width:34px;font-size:13px;font-weight:700}
 .acct-body{display:grid;gap:16px}
 .acct-body p{margin:0}
+.push-sub{width:100%;font:11px/1.4 ui-monospace,monospace;padding:8px;border:1px solid var(--line,#ddd);border-radius:8px;background:transparent;color:inherit;resize:none}
 .who{display:grid;gap:2px}.who b{font-size:18px}
 .syncrow{display:grid;grid-template-columns:auto auto 1fr;gap:4px 8px;align-items:center;background:var(--sunk);border-radius:14px;padding:12px 14px}
 .syncrow .muted{grid-column:1/-1;font-size:13px}
